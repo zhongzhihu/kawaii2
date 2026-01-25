@@ -11,6 +11,8 @@ struct ContentView: View {
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var weather: CurrentWeather?
+    @State private var nextHourPrecipitation: Double?
+    @State private var todayPrecipitationSum: Double?
 
     var body: some View {
         NavigationStack {
@@ -32,28 +34,57 @@ struct ContentView: View {
                     ProgressView("Loading Zurich weather…")
                 } else if let weather {
                     VStack(alignment: .leading, spacing: 16) {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Zurich")
-                                .font(.headline)
-                                .foregroundStyle(.secondary)
+                        ZStack(alignment: .topLeading) {
+                            Image("zurich_1")
+                                .resizable()
+                                .scaledToFill()
+                                .overlay(Color.black.opacity(0.15))
 
-                            Text(String(format: "%.0f ℃", weather.temperature))
-                                .font(.system(size: 56, weight: .semibold, design: .rounded))
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Zurich")
+                                    .font(.headline)
+                                    .foregroundStyle(.white.opacity(0.85))
 
-                            Text(WeatherService.description(for: weather.weathercode))
-                                .font(.title3)
-                                .foregroundStyle(.secondary)
+                                Text(String(format: "%.0f ℃", weather.temperature))
+                                    .font(.system(size: 56, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(.white)
 
-                            HStack(spacing: 8) {
-                                Image(systemName: "wind")
-                                    .foregroundStyle(.secondary)
-                                Text(String(format: "Wind %.0f km/h", weather.windspeed))
-                                    .font(.subheadline)
+                                Text(WeatherService.description(for: weather.weathercode))
+                                    .font(.title3)
+                                    .foregroundStyle(.white.opacity(0.9))
+
+                                HStack(spacing: 8) {
+                                    Image(systemName: "wind")
+                                        .foregroundStyle(.white.opacity(0.85))
+                                    Text(String(format: "Wind %.0f km/h", weather.windspeed))
+                                        .font(.subheadline)
+                                        .foregroundStyle(.white.opacity(0.9))
+                                }
+
+                                if let nextHourPrecipitation {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "cloud.rain")
+                                            .foregroundStyle(.white.opacity(0.85))
+                                        Text(String(format: "Next hour %.1f mm", nextHourPrecipitation))
+                                            .font(.subheadline)
+                                            .foregroundStyle(.white.opacity(0.9))
+                                    }
+                                }
+
+                                if let todayPrecipitationSum {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "drop")
+                                            .foregroundStyle(.white.opacity(0.85))
+                                        Text(String(format: "Today %.1f mm", todayPrecipitationSum))
+                                            .font(.subheadline)
+                                            .foregroundStyle(.white.opacity(0.9))
+                                    }
+                                }
                             }
+                            .padding(16)
                         }
-                        .padding(16)
                         .frame(width: 200, height: 200, alignment: .topLeading)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         .overlay(
                             RoundedRectangle(cornerRadius: 16, style: .continuous)
                                 .stroke(.white.opacity(0.2))
@@ -81,8 +112,10 @@ struct ContentView: View {
             // Zurich coordinates
             let lat = 47.3769
             let lon = 8.5417
-            let current = try await WeatherService.shared.fetchCurrentWeather(latitude: lat, longitude: lon)
-            self.weather = current
+            let snapshot = try await WeatherService.shared.fetchWeatherSnapshot(latitude: lat, longitude: lon)
+            self.weather = snapshot.current
+            self.nextHourPrecipitation = snapshot.nextHourPrecipitation
+            self.todayPrecipitationSum = snapshot.todayPrecipitationSum
         } catch {
             self.errorMessage = error.localizedDescription
         }

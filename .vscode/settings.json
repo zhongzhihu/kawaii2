@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^mkdir -p /Users/zhongzhi/kawaii2/kawaii2/Assets\\.xcassets/zurich_1\\.imageset && cp /Users/zhongzhi/kawaii2/kawaii2/assets/zurich_1\\.png /Users/zhongzhi/kawaii2/kawaii2/Assets\\.xcassets/zurich_1\\.imageset/$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

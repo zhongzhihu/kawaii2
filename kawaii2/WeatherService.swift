@@ -18,10 +18,35 @@ public struct CurrentWeather: Decodable {
 
 public struct OpenMeteoResponse: Decodable {
     public let currentWeather: CurrentWeather
+    public let hourly: HourlyWeather
+    public let daily: DailyWeather
 
     private enum CodingKeys: String, CodingKey {
         case currentWeather = "current_weather"
+        case hourly
+        case daily
     }
+}
+
+public struct HourlyWeather: Decodable {
+    public let time: [String]
+    public let precipitation: [Double]
+}
+
+public struct DailyWeather: Decodable {
+    public let time: [String]
+    public let precipitationSum: [Double]
+
+    private enum CodingKeys: String, CodingKey {
+        case time
+        case precipitationSum = "precipitation_sum"
+    }
+}
+
+public struct WeatherSnapshot {
+    public let current: CurrentWeather
+    public let nextHourPrecipitation: Double?
+    public let todayPrecipitationSum: Double?
 }
 
 public final class WeatherService {
@@ -29,14 +54,32 @@ public final class WeatherService {
 
     private init() {}
 
-    public func fetchCurrentWeather(latitude: Double, longitude: Double) async throws -> CurrentWeather {
-        let urlString = "https://api.open-meteo.com/v1/forecast?latitude=\(latitude)&longitude=\(longitude)&current_weather=true"
+    public func fetchWeatherSnapshot(latitude: Double, longitude: Double) async throws -> WeatherSnapshot {
+        let urlString = "https://api.open-meteo.com/v1/forecast?latitude=\(latitude)&longitude=\(longitude)&current_weather=true&hourly=precipitation&daily=precipitation_sum&forecast_days=1&timezone=auto"
         guard let url = URL(string: urlString) else {
             throw URLError(.badURL)
         }
         let (data, _) = try await URLSession.shared.data(from: url)
         let decoded = try JSONDecoder().decode(OpenMeteoResponse.self, from: data)
-        return decoded.currentWeather
+        let currentTime = decoded.currentWeather.time
+        let nextHourPrecipitation = Self.nextHourPrecipitation(from: decoded.hourly, currentTime: currentTime)
+        let todayPrecipitationSum = decoded.daily.precipitationSum.first
+        return WeatherSnapshot(
+            current: decoded.currentWeather,
+            nextHourPrecipitation: nextHourPrecipitation,
+            todayPrecipitationSum: todayPrecipitationSum
+        )
+    }
+
+    private static func nextHourPrecipitation(from hourly: HourlyWeather, currentTime: String) -> Double? {
+        guard let currentIndex = hourly.time.firstIndex(of: currentTime) else {
+            return hourly.precipitation.first
+        }
+        let nextIndex = hourly.time.index(after: currentIndex)
+        guard nextIndex < hourly.precipitation.endIndex else {
+            return nil
+        }
+        return hourly.precipitation[nextIndex]
     }
 
     public static func description(for code: Int) -> String {
