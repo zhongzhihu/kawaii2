@@ -31,28 +31,37 @@ struct ContentView: View {
                 } else if isLoading {
                     ProgressView("Loading Zurich weather…")
                 } else if let weather {
-                    VStack(spacing: 16) {
-                        Text("Zurich")
-                            .font(.largeTitle).bold()
+                    VStack(alignment: .leading, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Zurich")
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
 
-                        VStack(spacing: 8) {
                             Text(String(format: "%.0f ℃", weather.temperature))
                                 .font(.system(size: 56, weight: .semibold, design: .rounded))
+
                             Text(WeatherService.description(for: weather.weathercode))
                                 .font(.title3)
                                 .foregroundStyle(.secondary)
-                        }
 
-                        HStack(spacing: 8) {
-                            Image(systemName: "wind")
-                                .foregroundStyle(.secondary)
-                            Text(String(format: "Wind %.0f km/h", weather.windspeed))
-                                .font(.subheadline)
+                            HStack(spacing: 8) {
+                                Image(systemName: "wind")
+                                    .foregroundStyle(.secondary)
+                                Text(String(format: "Wind %.0f km/h", weather.windspeed))
+                                    .font(.subheadline)
+                            }
                         }
-
-                        // ...wind info removed...
+                        .padding(16)
+                        .frame(width: 200, height: 200, alignment: .topLeading)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(.white.opacity(0.2))
+                        )
                     }
-                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal)
+                    .frame(maxHeight: .infinity, alignment: .topLeading)
                 } else {
                     ContentUnavailableView("No data", systemImage: "cloud.slash")
                 }
