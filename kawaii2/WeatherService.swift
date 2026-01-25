@@ -253,6 +253,35 @@ public final class WeatherService {
         }
         return baseName
     }
+
+    public static func symbolName(for code: Int) -> String {
+        switch code {
+        case 0:
+            return "sun.max.fill"
+        case 1, 2:
+            return "cloud.sun.fill"
+        case 3:
+            return "cloud.fill"
+        case 45, 48:
+            return "cloud.fog.fill"
+        case 51...57:
+            return "cloud.drizzle.fill"
+        case 61...67:
+            return "cloud.rain.fill"
+        case 71...77:
+            return "cloud.snow.fill"
+        case 80...82:
+            return "cloud.heavyrain.fill"
+        case 85...86:
+            return "cloud.snow.fill"
+        case 95:
+            return "cloud.bolt.rain.fill"
+        case 96...99:
+            return "cloud.bolt.rain.fill"
+        default:
+            return "cloud.fill"
+        }
+    }
 }
 
 private extension Array {

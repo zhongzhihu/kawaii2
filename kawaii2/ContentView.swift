@@ -279,7 +279,7 @@ struct ContentView: View {
                             .frame(width: 18, height: 18)
                             .foregroundStyle(.white.opacity(0.9))
                     } else {
-                        Image(systemName: "cloud.fill")
+                        Image(systemName: WeatherService.symbolName(for: weather.weathercode))
                             .resizable()
                             .scaledToFit()
                             .frame(width: 18, height: 18)
@@ -463,6 +463,11 @@ struct ContentView: View {
 
             weatherIcon(for: forecast.weathercode, size: 22)
 
+            Text(WeatherService.description(for: forecast.weathercode))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+
             if let probability = forecast.precipitationProbabilityMax, probability > 0 {
                 HStack(spacing: 4) {
                     Image(systemName: "drop.fill")
@@ -524,7 +529,7 @@ struct ContentView: View {
             )
         }
         return AnyView(
-            Image(systemName: "cloud.fill")
+            Image(systemName: WeatherService.symbolName(for: code))
                 .resizable()
                 .scaledToFit()
                 .frame(width: size, height: size)
