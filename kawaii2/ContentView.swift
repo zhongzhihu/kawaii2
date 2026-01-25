@@ -12,6 +12,7 @@ struct ContentView: View {
     private enum SelectedCity: String {
         case zurich
         case sanFrancisco
+        case miami
     }
 
     @State private var isLoading = true
@@ -24,6 +25,10 @@ struct ContentView: View {
     @State private var sanFranciscoTodayPrecipitationSum: Double?
     @State private var sanFranciscoForecasts: [DailyForecast] = []
     @State private var sanFranciscoHourlyForecasts: [HourlyForecast] = []
+    @State private var miamiWeather: CurrentWeather?
+    @State private var miamiTodayPrecipitationSum: Double?
+    @State private var miamiForecasts: [DailyForecast] = []
+    @State private var miamiHourlyForecasts: [HourlyForecast] = []
     @State private var showsSettings = false
     @State private var selectedCity: SelectedCity = .zurich
     @AppStorage("temperatureUnit") private var temperatureUnitRaw: String = ""
@@ -58,11 +63,11 @@ struct ContentView: View {
                     .padding()
                 } else if isLoading {
                     ProgressView("Loading weather…")
-                } else if let zurichWeather, let sanFranciscoWeather {
+                } else if let zurichWeather, let sanFranciscoWeather, let miamiWeather {
                     ScrollView {
                         VStack(spacing: 20) {
-                            GeometryReader { proxy in
-                                let size = cardSize(for: proxy.size.width)
+                            let size = cardSize(for: UIScreen.main.bounds.width)
+                            ScrollView(.horizontal, showsIndicators: true) {
                                 HStack(alignment: .top, spacing: 16) {
                                     weatherCard(
                                         cityName: "Zurich",
@@ -99,30 +104,58 @@ struct ContentView: View {
                                                 lineWidth: 2
                                             )
                                     )
+
+                                    weatherCard(
+                                        cityName: "Miami",
+                                        imageName: "miami",
+                                        weather: miamiWeather,
+                                        todayPrecipitationSum: miamiTodayPrecipitationSum,
+                                        size: size
+                                    )
+                                    .onTapGesture {
+                                        selectedCity = .miami
+                                    }
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                            .stroke(
+                                                selectedCity == .miami ? Color.white.opacity(0.75) : .clear,
+                                                lineWidth: 2
+                                            )
+                                    )
                                 }
-                                .frame(maxWidth: .infinity, alignment: .center)
                                 .padding(.horizontal)
                                 .frame(height: size)
                             }
-                            .frame(height: cardSize(for: UIScreen.main.bounds.width))
+                            .frame(height: size)
 
-                            if selectedCity == .zurich {
+                            switch selectedCity {
+                            case .zurich:
                                 if !zurichForecasts.isEmpty {
                                     cityForecastSection(
-                                        title: "Zurich Details",
+                                        cityName: "Zurich",
                                         forecasts: zurichForecasts,
                                         current: zurichWeather,
                                         hourlyForecasts: zurichHourlyForecasts
                                     )
                                     .padding(.horizontal)
                                 }
-                            } else {
+                            case .sanFrancisco:
                                 if !sanFranciscoForecasts.isEmpty {
                                     cityForecastSection(
-                                        title: "San Francisco Details",
+                                        cityName: "San Francisco",
                                         forecasts: sanFranciscoForecasts,
                                         current: sanFranciscoWeather,
                                         hourlyForecasts: sanFranciscoHourlyForecasts
+                                    )
+                                    .padding(.horizontal)
+                                }
+                            case .miami:
+                                if !miamiForecasts.isEmpty {
+                                    cityForecastSection(
+                                        cityName: "Miami",
+                                        forecasts: miamiForecasts,
+                                        current: miamiWeather,
+                                        hourlyForecasts: miamiHourlyForecasts
                                     )
                                     .padding(.horizontal)
                                 }
@@ -171,8 +204,12 @@ struct ContentView: View {
                 latitude: 37.7749,
                 longitude: -122.4194
             )
+            async let miamiSnapshot = WeatherService.shared.fetchWeatherSnapshot(
+                latitude: 25.7617,
+                longitude: -80.1918
+            )
 
-            let (zurich, sanFrancisco) = try await (zurichSnapshot, sanFranciscoSnapshot)
+            let (zurich, sanFrancisco, miami) = try await (zurichSnapshot, sanFranciscoSnapshot, miamiSnapshot)
             self.zurichWeather = zurich.current
             self.zurichTodayPrecipitationSum = zurich.todayPrecipitationSum
             self.zurichForecasts = zurich.dailyForecasts
@@ -181,6 +218,10 @@ struct ContentView: View {
             self.sanFranciscoTodayPrecipitationSum = sanFrancisco.todayPrecipitationSum
             self.sanFranciscoForecasts = sanFrancisco.dailyForecasts
             self.sanFranciscoHourlyForecasts = sanFrancisco.hourlyForecasts
+            self.miamiWeather = miami.current
+            self.miamiTodayPrecipitationSum = miami.todayPrecipitationSum
+            self.miamiForecasts = miami.dailyForecasts
+            self.miamiHourlyForecasts = miami.hourlyForecasts
         } catch {
             self.errorMessage = error.localizedDescription
         }
@@ -254,7 +295,7 @@ struct ContentView: View {
                         Image(systemName: "drop")
                             .foregroundStyle(.white.opacity(0.85))
                             .font(.system(size: 18))
-                        Text(precipitationUnit.formattedLabel(precipitationInMillimeters: todayPrecipitationSum))
+                        Text(precipitationUnit.formattedAmount(precipitationInMillimeters: todayPrecipitationSum))
                             .font(.subheadline)
                             .foregroundStyle(.white.opacity(0.9))
                     }
@@ -280,7 +321,7 @@ struct ContentView: View {
 
     @ViewBuilder
     private func cityForecastSection(
-        title: String,
+        cityName: String,
         forecasts: [DailyForecast],
         current: CurrentWeather,
         hourlyForecasts: [HourlyForecast]
@@ -293,12 +334,9 @@ struct ContentView: View {
         let upcoming = Array(forecasts.dropFirst().prefix(7))
 
         VStack(alignment: .leading, spacing: 14) {
-            Text(title)
-                .font(.headline)
-                .foregroundStyle(.primary)
-
             if let today = forecasts.first {
                 todayDetailCard(
+                    cityName: cityName,
                     forecast: today,
                     current: current,
                     hourlyForecasts: hourlyForecasts,
@@ -311,7 +349,8 @@ struct ContentView: View {
                 ForEach(upcoming) { forecast in
                     forecastRow(
                         forecast: forecast,
-                        temperatureUnit: temperatureUnit
+                        temperatureUnit: temperatureUnit,
+                        precipitationUnit: precipitationUnit
                     )
 
                     if forecast.id != upcoming.last?.id {
@@ -331,6 +370,7 @@ struct ContentView: View {
     }
 
     private func todayDetailCard(
+        cityName: String,
         forecast: DailyForecast,
         current: CurrentWeather,
         hourlyForecasts: [HourlyForecast],
@@ -341,8 +381,11 @@ struct ContentView: View {
             HStack(spacing: 12) {
                 weatherIcon(for: forecast.weathercode, size: 30)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Today")
+                    Text(cityName)
                         .font(.headline)
+                    Text("Today")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                     Text(WeatherService.description(for: forecast.weathercode))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
@@ -409,7 +452,8 @@ struct ContentView: View {
 
     private func forecastRow(
         forecast: DailyForecast,
-        temperatureUnit: TemperatureUnit
+        temperatureUnit: TemperatureUnit,
+        precipitationUnit: PrecipitationUnit
     ) -> some View {
         HStack(spacing: 12) {
             Text(dayLabel(for: forecast.date))
@@ -427,6 +471,12 @@ struct ContentView: View {
                         .font(.caption)
                 }
                 .foregroundStyle(.blue)
+            }
+
+            if let precipitationSum = forecast.precipitationSum, precipitationSum > 0 {
+                Text(precipitationUnit.formattedAmount(precipitationInMillimeters: precipitationSum))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Spacer()
@@ -503,14 +553,31 @@ struct ContentView: View {
             Text(temperatureValue(forecast.temperature, unit: temperatureUnit))
                 .font(.subheadline.weight(.semibold))
 
-            if let precipitation = forecast.precipitation, precipitation > 0 {
-                Text(precipitationUnit.formattedAmount(precipitationInMillimeters: precipitation))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            } else if let probability = forecast.precipitationProbability, probability > 0 {
-                Text(String(format: "%.0f%%", probability))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+            let precipitationText: String? = {
+                if let precipitation = forecast.precipitation, precipitation > 0 {
+                    return precipitationUnit.formattedAmount(precipitationInMillimeters: precipitation)
+                }
+                return nil
+            }()
+
+            let probabilityText: String? = {
+                if let probability = forecast.precipitationProbability, probability > 0 {
+                    return String(format: "%.0f%%", probability)
+                }
+                return nil
+            }()
+
+            if precipitationText != nil || probabilityText != nil {
+                VStack(spacing: 2) {
+                    if let precipitationText {
+                        Text(precipitationText)
+                    }
+                    if let probabilityText {
+                        Text(probabilityText)
+                    }
+                }
+                .font(.caption2)
+                .foregroundStyle(.secondary)
             } else {
                 Text("—")
                     .font(.caption2)
