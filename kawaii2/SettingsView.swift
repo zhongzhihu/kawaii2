@@ -179,4 +179,15 @@ enum PrecipitationUnit: String, CaseIterable, Identifiable {
         }
         return String(format: "Today %.1f %@", value, symbol)
     }
+
+    func formattedAmount(precipitationInMillimeters: Double) -> String {
+        let value: Double
+        switch self {
+        case .millimeters:
+            value = precipitationInMillimeters
+        case .inches:
+            value = precipitationInMillimeters / 25.4
+        }
+        return String(format: "%.1f %@", value, symbol)
+    }
 }
