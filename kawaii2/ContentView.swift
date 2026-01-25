@@ -43,25 +43,19 @@ struct ContentView: View {
                                 .overlay(Color.black.opacity(0.15))
 
                             VStack(alignment: .leading, spacing: 12) {
-                                Text("Zurich")
-                                    .font(.headline)
-                                    .foregroundStyle(.white.opacity(0.85))
+                                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                                    Text("Zurich")
+                                        .font(.headline)
+                                        .foregroundStyle(.white.opacity(0.85))
 
-                                Text(String(format: "%.0f ℃", weather.temperature))
-                                    .font(.system(size: 56, weight: .semibold, design: .rounded))
-                                    .foregroundStyle(.white)
+                                    Text(String(format: "%.0f ℃", weather.temperature))
+                                        .font(.title2.weight(.semibold))
+                                        .foregroundStyle(.white)
+                                }
 
                                 Text(WeatherService.description(for: weather.weathercode))
                                     .font(.title3)
                                     .foregroundStyle(.white.opacity(0.9))
-
-                                HStack(spacing: 8) {
-                                    Image(systemName: "wind")
-                                        .foregroundStyle(.white.opacity(0.85))
-                                    Text(String(format: "Wind %.0f km/h", weather.windspeed))
-                                        .font(.subheadline)
-                                        .foregroundStyle(.white.opacity(0.9))
-                                }
 
                                 if let nextHourPrecipitation {
                                     HStack(spacing: 8) {
