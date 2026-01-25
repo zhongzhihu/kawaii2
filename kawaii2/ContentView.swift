@@ -38,6 +38,8 @@ struct ContentView: View {
                             Image("zurich_1")
                                 .resizable()
                                 .scaledToFill()
+                                .frame(width: 200, height: 200)
+                                .clipped()
                                 .overlay(Color.black.opacity(0.15))
 
                             VStack(alignment: .leading, spacing: 12) {
