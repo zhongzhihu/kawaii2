@@ -6,12 +6,12 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct ContentView: View {
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var weather: CurrentWeather?
-    @State private var nextHourPrecipitation: Double?
     @State private var todayPrecipitationSum: Double?
 
     var body: some View {
@@ -45,7 +45,7 @@ struct ContentView: View {
                             VStack(alignment: .leading, spacing: 12) {
                                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                                     Text("Zurich")
-                                        .font(.headline)
+                                        .font(.title2)
                                         .foregroundStyle(.white.opacity(0.85))
 
                                     Text(String(format: "%.0f ℃", weather.temperature))
@@ -53,18 +53,25 @@ struct ContentView: View {
                                         .foregroundStyle(.white)
                                 }
 
-                                Text(WeatherService.description(for: weather.weathercode))
-                                    .font(.title3)
-                                    .foregroundStyle(.white.opacity(0.9))
+                                Spacer()
 
-                                if let nextHourPrecipitation {
-                                    HStack(spacing: 8) {
-                                        Image(systemName: "cloud.rain")
-                                            .foregroundStyle(.white.opacity(0.85))
-                                        Text(String(format: "Next hour %.1f mm", nextHourPrecipitation))
-                                            .font(.subheadline)
+                                HStack(spacing: 8) {
+                                    if UIImage(named: WeatherService.iconName(for: weather.weathercode)) != nil {
+                                        Image(WeatherService.iconName(for: weather.weathercode))
+                                            .resizable()
+                                            .scaledToFit()
+                                            .frame(width: 24, height: 24)
+                                            .foregroundStyle(.white.opacity(0.9))
+                                    } else {
+                                        Image(systemName: "cloud.fill")
+                                            .resizable()
+                                            .scaledToFit()
+                                            .frame(width: 24, height: 24)
                                             .foregroundStyle(.white.opacity(0.9))
                                     }
+                                    Text(WeatherService.description(for: weather.weathercode))
+                                        .font(.headline)
+                                        .foregroundStyle(.white.opacity(0.9))
                                 }
 
                                 if let todayPrecipitationSum {
@@ -72,12 +79,13 @@ struct ContentView: View {
                                         Image(systemName: "drop")
                                             .foregroundStyle(.white.opacity(0.85))
                                         Text(String(format: "Today %.1f mm", todayPrecipitationSum))
-                                            .font(.subheadline)
+                                            .font(.headline)
                                             .foregroundStyle(.white.opacity(0.9))
                                     }
                                 }
                             }
                             .padding(16)
+                            .frame(width: 200, height: 200, alignment: .leading)
                         }
                         .frame(width: 200, height: 200, alignment: .topLeading)
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -110,7 +118,6 @@ struct ContentView: View {
             let lon = 8.5417
             let snapshot = try await WeatherService.shared.fetchWeatherSnapshot(latitude: lat, longitude: lon)
             self.weather = snapshot.current
-            self.nextHourPrecipitation = snapshot.nextHourPrecipitation
             self.todayPrecipitationSum = snapshot.todayPrecipitationSum
         } catch {
             self.errorMessage = error.localizedDescription

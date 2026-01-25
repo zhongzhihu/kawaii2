@@ -86,8 +86,12 @@ public final class WeatherService {
         switch code {
         case 0:
             return "Clear sky"
-        case 1...3:
-            return "Mainly/partly cloudy"
+        case 1:
+            return "Mainly clear"
+        case 2:
+            return "Partly cloudy"
+        case 3:
+            return "Cloudy"
         case 45, 48:
             return "Fog"
         case 51...57:
@@ -107,5 +111,36 @@ public final class WeatherService {
         default:
             return "Unknown"
         }
+    }
+
+    public static func iconName(for code: Int) -> String {
+        let baseName: String
+        switch code {
+        case 0:
+            baseName = "wi-day-sunny"
+        case 1, 2:
+            baseName = "wi-day-cloudy"
+        case 3:
+            baseName = "wi-cloudy"
+        case 45, 48:
+            baseName = "wi-fog"
+        case 51...57:
+            baseName = "wi-sprinkle"
+        case 61...67:
+            baseName = "wi-rain"
+        case 71...77:
+            baseName = "wi-snow"
+        case 80...82:
+            baseName = "wi-showers"
+        case 85...86:
+            baseName = "wi-snow"
+        case 95:
+            baseName = "wi-thunderstorm"
+        case 96...99:
+            baseName = "wi-storm-showers"
+        default:
+            baseName = "wi-na"
+        }
+        return baseName
     }
 }
