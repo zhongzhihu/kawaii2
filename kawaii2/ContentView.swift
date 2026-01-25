@@ -13,6 +13,7 @@ struct ContentView: View {
         case zurich
         case sanFrancisco
         case miami
+        case dubai
     }
 
     @State private var isLoading = true
@@ -29,6 +30,10 @@ struct ContentView: View {
     @State private var miamiTodayPrecipitationSum: Double?
     @State private var miamiForecasts: [DailyForecast] = []
     @State private var miamiHourlyForecasts: [HourlyForecast] = []
+    @State private var dubaiWeather: CurrentWeather?
+    @State private var dubaiTodayPrecipitationSum: Double?
+    @State private var dubaiForecasts: [DailyForecast] = []
+    @State private var dubaiHourlyForecasts: [HourlyForecast] = []
     @State private var showsSettings = false
     @State private var selectedCity: SelectedCity = .zurich
     @AppStorage("temperatureUnit") private var temperatureUnitRaw: String = ""
@@ -63,7 +68,7 @@ struct ContentView: View {
                     .padding()
                 } else if isLoading {
                     ProgressView("Loading weather…")
-                } else if let zurichWeather, let sanFranciscoWeather, let miamiWeather {
+                } else if let zurichWeather, let sanFranciscoWeather, let miamiWeather, let dubaiWeather {
                     ScrollView {
                         VStack(spacing: 20) {
                             let size = cardSize(for: UIScreen.main.bounds.width)
@@ -122,6 +127,24 @@ struct ContentView: View {
                                                 lineWidth: 2
                                             )
                                     )
+
+                                    weatherCard(
+                                        cityName: "Dubai",
+                                        imageName: "dubai",
+                                        weather: dubaiWeather,
+                                        todayPrecipitationSum: dubaiTodayPrecipitationSum,
+                                        size: size
+                                    )
+                                    .onTapGesture {
+                                        selectedCity = .dubai
+                                    }
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                            .stroke(
+                                                selectedCity == .dubai ? Color.white.opacity(0.75) : .clear,
+                                                lineWidth: 2
+                                            )
+                                    )
                                 }
                                 .padding(.horizontal)
                                 .frame(height: size)
@@ -156,6 +179,16 @@ struct ContentView: View {
                                         forecasts: miamiForecasts,
                                         current: miamiWeather,
                                         hourlyForecasts: miamiHourlyForecasts
+                                    )
+                                    .padding(.horizontal)
+                                }
+                            case .dubai:
+                                if !dubaiForecasts.isEmpty {
+                                    cityForecastSection(
+                                        cityName: "Dubai",
+                                        forecasts: dubaiForecasts,
+                                        current: dubaiWeather,
+                                        hourlyForecasts: dubaiHourlyForecasts
                                     )
                                     .padding(.horizontal)
                                 }
@@ -208,8 +241,17 @@ struct ContentView: View {
                 latitude: 25.7617,
                 longitude: -80.1918
             )
+            async let dubaiSnapshot = WeatherService.shared.fetchWeatherSnapshot(
+                latitude: 25.2048,
+                longitude: 55.2708
+            )
 
-            let (zurich, sanFrancisco, miami) = try await (zurichSnapshot, sanFranciscoSnapshot, miamiSnapshot)
+            let (zurich, sanFrancisco, miami, dubai) = try await (
+                zurichSnapshot,
+                sanFranciscoSnapshot,
+                miamiSnapshot,
+                dubaiSnapshot
+            )
             self.zurichWeather = zurich.current
             self.zurichTodayPrecipitationSum = zurich.todayPrecipitationSum
             self.zurichForecasts = zurich.dailyForecasts
@@ -222,6 +264,10 @@ struct ContentView: View {
             self.miamiTodayPrecipitationSum = miami.todayPrecipitationSum
             self.miamiForecasts = miami.dailyForecasts
             self.miamiHourlyForecasts = miami.hourlyForecasts
+            self.dubaiWeather = dubai.current
+            self.dubaiTodayPrecipitationSum = dubai.todayPrecipitationSum
+            self.dubaiForecasts = dubai.dailyForecasts
+            self.dubaiHourlyForecasts = dubai.hourlyForecasts
         } catch {
             self.errorMessage = error.localizedDescription
         }
