@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 //
 //  ContentView.swift
 //  kawaii2
@@ -6,18 +5,6 @@
 //  Created by Zhongzhi on 25.01.2026.
 //
 
-import SwiftUI
-
-struct ContentView: View {
-    var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
-        }
-        .padding()
-=======
 import SwiftUI
 
 struct ContentView: View {
@@ -45,27 +32,25 @@ struct ContentView: View {
                     ProgressView("Loading Zurich weather…")
                 } else if let weather {
                     VStack(spacing: 16) {
-                        HStack(alignment: .firstTextBaseline, spacing: 8) {
-                            Text("Zurich")
-                                .font(.largeTitle).bold()
-                            Text(weather.time)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
+                        Text("Zurich")
+                            .font(.largeTitle).bold()
 
                         VStack(spacing: 8) {
-                            Text(String(format: "%.1f ℃", weather.temperature))
+                            Text(String(format: "%.0f ℃", weather.temperature))
                                 .font(.system(size: 56, weight: .semibold, design: .rounded))
                             Text(WeatherService.description(for: weather.weathercode))
                                 .font(.title3)
                                 .foregroundStyle(.secondary)
                         }
 
-                        HStack(spacing: 24) {
-                            Label(String(format: "%.0f km/h", weather.windspeed), systemImage: "wind")
-                            Label(String(format: "%.0f°", weather.winddirection), systemImage: "location.north.line")
+                        HStack(spacing: 8) {
+                            Image(systemName: "wind")
+                                .foregroundStyle(.secondary)
+                            Text(String(format: "Wind %.0f km/h", weather.windspeed))
+                                .font(.subheadline)
                         }
-                        .font(.headline)
+
+                        // ...wind info removed...
                     }
                     .padding()
                 } else {
@@ -93,7 +78,6 @@ struct ContentView: View {
             self.errorMessage = error.localizedDescription
         }
         isLoading = false
->>>>>>> c51a071 (Initial Commit)
     }
 }
 
