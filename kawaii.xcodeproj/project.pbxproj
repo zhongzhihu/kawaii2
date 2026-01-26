@@ -11,9 +11,9 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		948273832F26662A00DAFABC /* kawaii2 */ = {
+		948273832F26662A00DAFABC /* kawaii */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = kawaii2;
+			path = kawaii;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -32,7 +32,7 @@
 		948273782F26662A00DAFABC = {
 			isa = PBXGroup;
 			children = (
-				948273832F26662A00DAFABC /* kawaii2 */,
+				948273832F26662A00DAFABC /* kawaii */,
 				948273822F26662A00DAFABC /* Products */,
 			);
 			sourceTree = "<group>";
@@ -61,7 +61,7 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				948273832F26662A00DAFABC /* kawaii2 */,
+				948273832F26662A00DAFABC /* kawaii */,
 			);
 			name = kawaii;
 			packageProductDependencies = (
@@ -85,7 +85,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 9482737C2F26662A00DAFABC /* Build configuration list for PBXProject "kawaii2" */;
+			buildConfigurationList = 9482737C2F26662A00DAFABC /* Build configuration list for PBXProject "kawaii" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -313,7 +313,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		9482737C2F26662A00DAFABC /* Build configuration list for PBXProject "kawaii2" */ = {
+		9482737C2F26662A00DAFABC /* Build configuration list for PBXProject "kawaii" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				9482738A2F26662B00DAFABC /* Debug */,
