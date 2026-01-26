@@ -565,7 +565,17 @@ struct ContentView: View {
         return String(format: "%.0f%@", converted, unit.symbol)
     }
 
-    private func weatherIcon(for code: Int, size: CGFloat) -> some View {
+    private func weatherIcon(for code: Int, size: CGFloat, isNight: Bool = false) -> some View {
+        if isNight, let nightSymbolName = nightSymbolName(for: code) {
+            return AnyView(
+                Image(systemName: nightSymbolName)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: size, height: size)
+                    .foregroundStyle(.secondary)
+            )
+        }
+
         if UIImage(named: WeatherService.iconName(for: code)) != nil {
             return AnyView(
                 Image(WeatherService.iconName(for: code))
@@ -604,6 +614,12 @@ struct ContentView: View {
             Text(temperatureValue(forecast.temperature, unit: temperatureUnit))
                 .font(.subheadline.weight(.semibold))
 
+            weatherIcon(
+                for: forecast.weathercode,
+                size: 18,
+                isNight: isNightTime(for: forecast.time)
+            )
+
             let precipitationText: String? = {
                 if let precipitation = forecast.precipitation, precipitation > 0 {
                     return precipitationUnit.formattedAmount(precipitationInMillimeters: precipitation)
@@ -629,10 +645,6 @@ struct ContentView: View {
                 }
                 .font(.caption2)
                 .foregroundStyle(.secondary)
-            } else {
-                Text("—")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, 8)
@@ -648,6 +660,53 @@ struct ContentView: View {
             return Self.hourFormatter.string(from: date)
         }
         return dateTime
+    }
+
+    private func isNightTime(for dateTime: String) -> Bool {
+        guard let date = Self.isoDateTimeFormatter.date(from: dateTime) else {
+            return false
+        }
+        let hour = Calendar.autoupdatingCurrent.component(.hour, from: date)
+        return hour < 6 || hour >= 19
+    }
+
+    private func nightSymbolName(for code: Int) -> String? {
+        switch code {
+        case 0:
+            return "moon.stars.fill"
+        case 1, 2:
+            return "cloud.moon.fill"
+        case 3:
+            return "cloud.fill"
+        case 45, 48:
+            return "cloud.fog.fill"
+        case 51, 53:
+            return "cloud.drizzle.fill"
+        case 55:
+            return "cloud.heavyrain.fill"
+        case 56, 57:
+            return "cloud.sleet.fill"
+        case 61, 63:
+            return "cloud.rain.fill"
+        case 65:
+            return "cloud.heavyrain.fill"
+        case 66, 67:
+            return "cloud.sleet.fill"
+        case 71, 73:
+            return "cloud.snow.fill"
+        case 75, 77:
+            return "snowflake"
+        case 80, 81:
+            return "cloud.rain.fill"
+        case 82:
+            return "cloud.heavyrain.fill"
+        case 85, 86:
+            return "cloud.snow.fill"
+        case 95, 96, 99:
+            return "cloud.bolt.rain.fill"
+        default:
+            return nil
+        }
     }
 
     private func loadImage(named name: String) -> UIImage? {

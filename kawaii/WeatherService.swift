@@ -32,12 +32,14 @@ public struct HourlyWeather: Decodable {
     public let time: [String]
     public let precipitation: [Double]
     public let temperature: [Double]
+    public let weathercode: [Int]
     public let precipitationProbability: [Double]?
 
     private enum CodingKeys: String, CodingKey {
         case time
         case precipitation
         case temperature = "temperature_2m"
+        case weathercode
         case precipitationProbability = "precipitation_probability"
     }
 }
@@ -82,6 +84,7 @@ public struct HourlyForecast: Identifiable {
     public let id = UUID()
     public let time: String
     public let temperature: Double
+    public let weathercode: Int
     public let precipitation: Double?
     public let precipitationProbability: Double?
 }
@@ -101,7 +104,7 @@ public final class WeatherService {
     private init() {}
 
     public func fetchWeatherSnapshot(latitude: Double, longitude: Double) async throws -> WeatherSnapshot {
-        let urlString = "https://api.open-meteo.com/v1/forecast?latitude=\(latitude)&longitude=\(longitude)&current_weather=true&hourly=temperature_2m,precipitation,precipitation_probability&daily=precipitation_sum,weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max&forecast_days=8&timezone=auto"
+        let urlString = "https://api.open-meteo.com/v1/forecast?latitude=\(latitude)&longitude=\(longitude)&current_weather=true&hourly=temperature_2m,precipitation,precipitation_probability,weathercode&daily=precipitation_sum,weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max&forecast_days=8&timezone=auto"
         guard let url = URL(string: urlString) else {
             throw URLError(.badURL)
         }
@@ -156,7 +159,7 @@ public final class WeatherService {
     }
 
     private static func hourlyForecasts(from hourly: HourlyWeather, currentTime: String) -> [HourlyForecast] {
-        let count = min(hourly.time.count, hourly.temperature.count, hourly.precipitation.count)
+        let count = min(hourly.time.count, hourly.temperature.count, hourly.precipitation.count, hourly.weathercode.count)
         guard count > 0 else {
             return []
         }
@@ -186,6 +189,7 @@ public final class WeatherService {
             HourlyForecast(
                 time: hourly.time[index],
                 temperature: hourly.temperature[index],
+                weathercode: hourly.weathercode[index],
                 precipitation: hourly.precipitation[safe: index],
                 precipitationProbability: hourly.precipitationProbability?[safe: index]
             )
@@ -204,20 +208,50 @@ public final class WeatherService {
             return "Cloudy"
         case 45, 48:
             return "Fog"
-        case 51...57:
-            return "Drizzle"
-        case 61...67:
-            return "Rain"
-        case 71...77:
-            return "Snow"
-        case 80...82:
-            return "Rain showers"
-        case 85...86:
-            return "Snow showers"
+        case 51:
+            return "Light drizzle"
+        case 53:
+            return "Moderate drizzle"
+        case 55:
+            return "Dense drizzle"
+        case 56:
+            return "Light freezing drizzle"
+        case 57:
+            return "Dense freezing drizzle"
+        case 61:
+            return "Slight rain"
+        case 63:
+            return "Moderate rain"
+        case 65:
+            return "Heavy rain"
+        case 66:
+            return "Light freezing rain"
+        case 67:
+            return "Heavy freezing rain"
+        case 71:
+            return "Slight snow fall"
+        case 73:
+            return "Moderate snow fall"
+        case 75:
+            return "Heavy snow fall"
+        case 77:
+            return "Snow grains"
+        case 80:
+            return "Slight rain showers"
+        case 81:
+            return "Moderate rain showers"
+        case 82:
+            return "Violent rain showers"
+        case 85:
+            return "Slight snow showers"
+        case 86:
+            return "Heavy snow showers"
         case 95:
             return "Thunderstorm"
-        case 96...99:
-            return "Thunderstorm with hail"
+        case 96:
+            return "Thunderstorm with slight hail"
+        case 99:
+            return "Thunderstorm with heavy hail"
         default:
             return "Unknown"
         }
@@ -234,19 +268,35 @@ public final class WeatherService {
             baseName = "wi-cloudy"
         case 45, 48:
             baseName = "wi-fog"
-        case 51...57:
+        case 51, 53:
             baseName = "wi-sprinkle"
-        case 61...67:
+        case 55:
+            baseName = "wi-raindrops"
+        case 56, 57:
+            baseName = "wi-rain-mix"
+        case 61:
             baseName = "wi-rain"
-        case 71...77:
+        case 63:
+            baseName = "wi-rain"
+        case 65:
+            baseName = "wi-rain-wind"
+        case 66, 67:
+            baseName = "wi-rain-mix"
+        case 71, 73:
             baseName = "wi-snow"
-        case 80...82:
+        case 75:
+            baseName = "wi-snow-wind"
+        case 77:
+            baseName = "wi-snowflake-cold"
+        case 80, 81:
             baseName = "wi-showers"
-        case 85...86:
+        case 82:
+            baseName = "wi-showers"
+        case 85, 86:
             baseName = "wi-snow"
         case 95:
             baseName = "wi-thunderstorm"
-        case 96...99:
+        case 96, 99:
             baseName = "wi-storm-showers"
         default:
             baseName = "wi-na"
@@ -264,19 +314,35 @@ public final class WeatherService {
             return "cloud.fill"
         case 45, 48:
             return "cloud.fog.fill"
-        case 51...57:
+        case 51, 53:
             return "cloud.drizzle.fill"
-        case 61...67:
-            return "cloud.rain.fill"
-        case 71...77:
-            return "cloud.snow.fill"
-        case 80...82:
+        case 55:
             return "cloud.heavyrain.fill"
-        case 85...86:
+        case 56, 57:
+            return "cloud.sleet.fill"
+        case 61:
+            return "cloud.rain.fill"
+        case 63:
+            return "cloud.rain.fill"
+        case 65:
+            return "cloud.heavyrain.fill"
+        case 66, 67:
+            return "cloud.sleet.fill"
+        case 71, 73:
+            return "cloud.snow.fill"
+        case 75:
+            return "snowflake"
+        case 77:
+            return "snowflake"
+        case 80, 81:
+            return "cloud.rain.fill"
+        case 82:
+            return "cloud.heavyrain.fill"
+        case 85, 86:
             return "cloud.snow.fill"
         case 95:
             return "cloud.bolt.rain.fill"
-        case 96...99:
+        case 96, 99:
             return "cloud.bolt.rain.fill"
         default:
             return "cloud.fill"
