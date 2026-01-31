@@ -8,48 +8,35 @@
 import SwiftUI
 import UIKit
 import CoreLocation
+import MapKit
+import Combine
 
 struct ContentView: View {
-    private enum SelectedCity: String {
-        case zurich
-        case sanFrancisco
-        case miami
-        case dubai
+    private enum WidgetSelection: Hashable {
+        case location
+        case city(UUID)
     }
 
-    @State private var isLoading = true
-    @State private var errorMessage: String?
-    @State private var zurichWeather: CurrentWeather?
-    @State private var zurichTodayPrecipitationSum: Double?
-    @State private var zurichForecasts: [DailyForecast] = []
-    @State private var zurichHourlyForecasts: [HourlyForecast] = []
-    @State private var zurichAllHourlyForecasts: [HourlyForecast] = []
-    @State private var sanFranciscoWeather: CurrentWeather?
-    @State private var sanFranciscoTodayPrecipitationSum: Double?
-    @State private var sanFranciscoForecasts: [DailyForecast] = []
-    @State private var sanFranciscoHourlyForecasts: [HourlyForecast] = []
-    @State private var sanFranciscoAllHourlyForecasts: [HourlyForecast] = []
-    @State private var miamiWeather: CurrentWeather?
-    @State private var miamiTodayPrecipitationSum: Double?
-    @State private var miamiForecasts: [DailyForecast] = []
-    @State private var miamiHourlyForecasts: [HourlyForecast] = []
-    @State private var miamiAllHourlyForecasts: [HourlyForecast] = []
-    @State private var dubaiWeather: CurrentWeather?
-    @State private var dubaiTodayPrecipitationSum: Double?
-    @State private var dubaiForecasts: [DailyForecast] = []
-    @State private var dubaiHourlyForecasts: [HourlyForecast] = []
-    @State private var dubaiAllHourlyForecasts: [HourlyForecast] = []
     @State private var showsSettings = false
-    @State private var selectedCity: SelectedCity = .zurich
     @StateObject private var locationManager = LocationManager()
     @State private var locationWeather: CurrentWeather?
     @State private var locationTodayPrecipitationSum: Double?
+    @State private var locationForecasts: [DailyForecast] = []
+    @State private var locationHourlyForecasts: [HourlyForecast] = []
+    @State private var locationAllHourlyForecasts: [HourlyForecast] = []
     @State private var locationName: String = "Current Location"
     @State private var locationImageName: String?
     @State private var locationError: String?
     @State private var lastFetchedLocation: CLLocation?
+    @State private var customCities: [CityWeatherEntry] = []
+    @State private var selectedWidget: WidgetSelection = .location
+    @State private var searchQuery: String = ""
+    @State private var isSearching = false
+    @State private var searchError: String?
+    @StateObject private var searchCompleter = CitySearchCompleter()
     @AppStorage("temperatureUnit") private var temperatureUnitRaw: String = ""
     @AppStorage("precipitationUnit") private var precipitationUnitRaw: String = ""
+    private let cityGeocoder = CLGeocoder()
 
     init() {
         if UserDefaults.standard.string(forKey: "temperatureUnit") == nil {
@@ -64,160 +51,77 @@ struct ContentView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if let errorMessage {
-                    VStack(spacing: 12) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.largeTitle)
-                            .foregroundStyle(.orange)
-                        Text("Failed to load weather")
-                            .font(.headline)
-                        Text(errorMessage)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    .multilineTextAlignment(.center)
-                    .padding()
-                } else if isLoading {
-                    ProgressView("Loading weather…")
-                } else if let zurichWeather, let sanFranciscoWeather, let miamiWeather, let dubaiWeather {
-                    ScrollView {
-                        VStack(spacing: 20) {
-                            let size = cardSize(for: UIScreen.main.bounds.width)
-                            ScrollView(.horizontal, showsIndicators: true) {
-                                HStack(alignment: .top, spacing: 16) {
-                                    locationCard(size: size)
+            ScrollView {
+                VStack(spacing: 20) {
+                    searchSection
 
-                                    weatherCard(
-                                        cityName: "Zurich",
-                                        imageName: "zurich_1",
-                                        weather: zurichWeather,
-                                        todayPrecipitationSum: zurichTodayPrecipitationSum,
-                                        size: size
-                                    )
-                                    .onTapGesture {
-                                        selectedCity = .zurich
-                                    }
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                            .stroke(
-                                                selectedCity == .zurich ? Color.white.opacity(0.75) : .clear,
-                                                lineWidth: 2
-                                            )
-                                    )
+                    let size = cardSize(for: UIScreen.main.bounds.width)
+                    ScrollView(.horizontal, showsIndicators: true) {
+                        HStack(alignment: .top, spacing: 16) {
+                            locationCard(size: size)
+                                .onTapGesture {
+                                    selectedWidget = .location
+                                }
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                        .stroke(
+                                            selectedWidget == .location ? Color.white.opacity(0.75) : .clear,
+                                            lineWidth: 2
+                                        )
+                                )
 
-                                    weatherCard(
-                                        cityName: "San Francisco",
-                                        imageName: "san_francisco_1",
-                                        weather: sanFranciscoWeather,
-                                        todayPrecipitationSum: sanFranciscoTodayPrecipitationSum,
-                                        size: size
-                                    )
-                                    .onTapGesture {
-                                        selectedCity = .sanFrancisco
-                                    }
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                            .stroke(
-                                                selectedCity == .sanFrancisco ? Color.white.opacity(0.75) : .clear,
-                                                lineWidth: 2
-                                            )
-                                    )
-
-                                    weatherCard(
-                                        cityName: "Miami",
-                                        imageName: "miami",
-                                        weather: miamiWeather,
-                                        todayPrecipitationSum: miamiTodayPrecipitationSum,
-                                        size: size
-                                    )
-                                    .onTapGesture {
-                                        selectedCity = .miami
-                                    }
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                            .stroke(
-                                                selectedCity == .miami ? Color.white.opacity(0.75) : .clear,
-                                                lineWidth: 2
-                                            )
-                                    )
-
-                                    weatherCard(
-                                        cityName: "Dubai",
-                                        imageName: "dubai",
-                                        weather: dubaiWeather,
-                                        todayPrecipitationSum: dubaiTodayPrecipitationSum,
-                                        size: size
-                                    )
-                                    .onTapGesture {
-                                        selectedCity = .dubai
-                                    }
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                            .stroke(
-                                                selectedCity == .dubai ? Color.white.opacity(0.75) : .clear,
-                                                lineWidth: 2
-                                            )
-                                    )
+                            ForEach(customCities) { city in
+                                weatherCard(
+                                    cityName: city.name,
+                                    imageName: city.imageName,
+                                    weather: city.weather,
+                                    todayPrecipitationSum: city.todayPrecipitationSum,
+                                    size: size
+                                )
+                                .onTapGesture {
+                                    selectedWidget = .city(city.id)
                                 }
-                                .padding(.horizontal)
-                                .frame(height: size)
-                            }
-                            .frame(height: size)
-
-                            switch selectedCity {
-                            case .zurich:
-                                if !zurichForecasts.isEmpty {
-                                    CityForecastView(
-                                        cityName: "Zurich",
-                                        forecasts: zurichForecasts,
-                                        current: zurichWeather,
-                                        upcomingHourlyForecasts: zurichHourlyForecasts,
-                                        allHourlyForecasts: zurichAllHourlyForecasts
-                                    )
-                                    .padding(.horizontal)
-                                }
-                            case .sanFrancisco:
-                                if !sanFranciscoForecasts.isEmpty {
-                                    CityForecastView(
-                                        cityName: "San Francisco",
-                                        forecasts: sanFranciscoForecasts,
-                                        current: sanFranciscoWeather,
-                                        upcomingHourlyForecasts: sanFranciscoHourlyForecasts,
-                                        allHourlyForecasts: sanFranciscoAllHourlyForecasts
-                                    )
-                                    .padding(.horizontal)
-                                }
-                            case .miami:
-                                if !miamiForecasts.isEmpty {
-                                    CityForecastView(
-                                        cityName: "Miami",
-                                        forecasts: miamiForecasts,
-                                        current: miamiWeather,
-                                        upcomingHourlyForecasts: miamiHourlyForecasts,
-                                        allHourlyForecasts: miamiAllHourlyForecasts
-                                    )
-                                    .padding(.horizontal)
-                                }
-                            case .dubai:
-                                if !dubaiForecasts.isEmpty {
-                                    CityForecastView(
-                                        cityName: "Dubai",
-                                        forecasts: dubaiForecasts,
-                                        current: dubaiWeather,
-                                        upcomingHourlyForecasts: dubaiHourlyForecasts,
-                                        allHourlyForecasts: dubaiAllHourlyForecasts
-                                    )
-                                    .padding(.horizontal)
-                                }
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                        .stroke(
+                                            selectedWidget == .city(city.id) ? Color.white.opacity(0.75) : .clear,
+                                            lineWidth: 2
+                                        )
+                                )
                             }
                         }
-                        .padding(.top, 8)
-                        .padding(.bottom, 24)
+                        .padding(.horizontal)
+                        .frame(height: size)
                     }
-                } else {
-                    ContentUnavailableView("No data", systemImage: "cloud.slash")
+                    .frame(height: size)
+
+                    switch selectedWidget {
+                    case .location:
+                        if let locationWeather, !locationForecasts.isEmpty {
+                            CityForecastView(
+                                cityName: locationName,
+                                forecasts: locationForecasts,
+                                current: locationWeather,
+                                upcomingHourlyForecasts: locationHourlyForecasts,
+                                allHourlyForecasts: locationAllHourlyForecasts
+                            )
+                            .padding(.horizontal)
+                        }
+                    case .city(let id):
+                        if let city = customCities.first(where: { $0.id == id }) {
+                            CityForecastView(
+                                cityName: city.name,
+                                forecasts: city.forecasts,
+                                current: city.weather,
+                                upcomingHourlyForecasts: city.hourlyForecasts,
+                                allHourlyForecasts: city.allHourlyForecasts
+                            )
+                            .padding(.horizontal)
+                        }
+                    }
                 }
+                .padding(.top, 8)
+                .padding(.bottom, 24)
             }
             .navigationTitle("Weather")
             .toolbar {
@@ -239,7 +143,9 @@ struct ContentView: View {
         }
         .task {
             locationManager.requestAuthorization()
-            await loadWeather()
+            if let location = locationManager.lastLocation {
+                await loadLocationWeather(for: location)
+            }
         }
         .onChange(of: locationManager.lastLocation) { _, newLocation in
             guard let newLocation else { return }
@@ -252,61 +158,135 @@ struct ContentView: View {
         }
     }
 
-    @MainActor
-    private func loadWeather() async {
-        isLoading = true
-        errorMessage = nil
-        do {
-            async let zurichSnapshot = WeatherService.shared.fetchWeatherSnapshot(
-                latitude: 47.3769,
-                longitude: 8.5417
-            )
-            async let sanFranciscoSnapshot = WeatherService.shared.fetchWeatherSnapshot(
-                latitude: 37.7749,
-                longitude: -122.4194
-            )
-            async let miamiSnapshot = WeatherService.shared.fetchWeatherSnapshot(
-                latitude: 25.7617,
-                longitude: -80.1918
-            )
-            async let dubaiSnapshot = WeatherService.shared.fetchWeatherSnapshot(
-                latitude: 25.2048,
-                longitude: 55.2708
-            )
+    @ViewBuilder
+    private var searchSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                TextField("Search city", text: $searchQuery)
+                    .textInputAutocapitalization(.words)
+                    .disableAutocorrection(true)
+                    .textFieldStyle(.roundedBorder)
+                    .onChange(of: searchQuery) { _, newValue in
+                        searchCompleter.query = newValue
+                    }
 
-            let (zurich, sanFrancisco, miami, dubai) = try await (
-                zurichSnapshot,
-                sanFranciscoSnapshot,
-                miamiSnapshot,
-                dubaiSnapshot
-            )
-            self.zurichWeather = zurich.current
-            self.zurichTodayPrecipitationSum = zurich.todayPrecipitationSum
-            self.zurichForecasts = zurich.dailyForecasts
-            self.zurichHourlyForecasts = zurich.hourlyForecasts
-            self.zurichAllHourlyForecasts = zurich.allHourlyForecasts
-            self.sanFranciscoWeather = sanFrancisco.current
-            self.sanFranciscoTodayPrecipitationSum = sanFrancisco.todayPrecipitationSum
-            self.sanFranciscoForecasts = sanFrancisco.dailyForecasts
-            self.sanFranciscoHourlyForecasts = sanFrancisco.hourlyForecasts
-            self.sanFranciscoAllHourlyForecasts = sanFrancisco.allHourlyForecasts
-            self.miamiWeather = miami.current
-            self.miamiTodayPrecipitationSum = miami.todayPrecipitationSum
-            self.miamiForecasts = miami.dailyForecasts
-            self.miamiHourlyForecasts = miami.hourlyForecasts
-            self.miamiAllHourlyForecasts = miami.allHourlyForecasts
-            self.dubaiWeather = dubai.current
-            self.dubaiTodayPrecipitationSum = dubai.todayPrecipitationSum
-            self.dubaiForecasts = dubai.dailyForecasts
-            self.dubaiHourlyForecasts = dubai.hourlyForecasts
-            self.dubaiAllHourlyForecasts = dubai.allHourlyForecasts
-        } catch {
-            self.errorMessage = error.localizedDescription
+                Button {
+                    Task {
+                        await addCity(named: searchQuery)
+                    }
+                } label: {
+                    if isSearching {
+                        ProgressView()
+                            .tint(.white)
+                            .frame(width: 18, height: 18)
+                    } else {
+                        Image(systemName: "plus")
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isSearching || searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .accessibilityLabel("Add city")
+            }
+
+            if !searchCompleter.results.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(searchCompleter.results.prefix(5), id: \.self) { result in
+                        Button {
+                            let suggestion = result.title.isEmpty ? result.subtitle : "\(result.title), \(result.subtitle)"
+                            searchQuery = suggestion
+                            Task {
+                                await addCity(named: suggestion)
+                            }
+                        } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(result.title)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.primary)
+                                if !result.subtitle.isEmpty {
+                                    Text(result.subtitle)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 6)
+                        }
+                        .buttonStyle(.plain)
+
+                        if result != searchCompleter.results.prefix(5).last {
+                            Divider()
+                        }
+                    }
+                }
+                .padding(10)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color(uiColor: .secondarySystemGroupedBackground))
+                )
+            }
+
+            if let searchError {
+                Text(searchError)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
-        isLoading = false
+        .padding(.horizontal)
     }
 
-    @ViewBuilder
+    @MainActor
+    private func addCity(named name: String) async {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        isSearching = true
+        searchError = nil
+        cityGeocoder.cancelGeocode()
+
+        do {
+            let placemarks = try await cityGeocoder.geocodeAddressString(trimmed)
+            guard let placemark = placemarks.first, let location = placemark.location else {
+                throw CitySearchError.notFound
+            }
+
+            let displayName = placemark.locality
+                ?? placemark.subAdministrativeArea
+                ?? placemark.administrativeArea
+                ?? placemark.name
+                ?? trimmed
+
+            let snapshot = try await WeatherService.shared.fetchWeatherSnapshot(
+                latitude: location.coordinate.latitude,
+                longitude: location.coordinate.longitude
+            )
+
+            let entry = CityWeatherEntry(
+                name: displayName,
+                normalizedKey: normalizedCityKey(displayName),
+                imageName: imageNameForCity(displayName),
+                coordinate: location.coordinate,
+                weather: snapshot.current,
+                todayPrecipitationSum: snapshot.todayPrecipitationSum,
+                forecasts: snapshot.dailyForecasts,
+                hourlyForecasts: snapshot.hourlyForecasts,
+                allHourlyForecasts: snapshot.allHourlyForecasts
+            )
+
+            if let index = customCities.firstIndex(where: { $0.normalizedKey == entry.normalizedKey }) {
+                customCities[index] = entry
+            } else {
+                customCities.append(entry)
+            }
+
+            selectedWidget = .city(entry.id)
+            searchQuery = ""
+        } catch {
+            searchError = error.localizedDescription
+        }
+
+        isSearching = false
+    }
+
     private func weatherCard(
         cityName: String,
         imageName: String?,
@@ -319,7 +299,7 @@ struct ContentView: View {
         let precipitationUnit = PrecipitationUnit(rawValue: precipitationUnitRaw)
             ?? (Locale.current.usesMetricSystem ? .millimeters : .inches)
 
-        ZStack(alignment: .topLeading) {
+        return ZStack(alignment: .topLeading) {
             if let imageName, let uiImage = loadImage(named: imageName) {
                 Image(uiImage: uiImage)
                     .resizable()
@@ -410,6 +390,9 @@ struct ContentView: View {
             )
             locationWeather = snapshot.current
             locationTodayPrecipitationSum = snapshot.todayPrecipitationSum
+            locationForecasts = snapshot.dailyForecasts
+            locationHourlyForecasts = snapshot.hourlyForecasts
+            locationAllHourlyForecasts = snapshot.allHourlyForecasts
             locationError = nil
         } catch {
             locationError = error.localizedDescription
@@ -449,73 +432,81 @@ struct ContentView: View {
         return nil
     }
 
+    private func normalizedCityKey(_ cityName: String) -> String {
+        cityName
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     @ViewBuilder
     private func locationCard(size: CGFloat) -> some View {
-        let status = locationManager.authorizationStatus
+        Group {
+            let status = locationManager.authorizationStatus
 
-        if let locationWeather,
-           status == .authorizedWhenInUse || status == .authorizedAlways {
-            weatherCard(
-                cityName: locationName,
-                imageName: locationImageName,
-                weather: locationWeather,
-                todayPrecipitationSum: locationTodayPrecipitationSum,
-                size: size
-            )
-        } else {
-            ZStack(alignment: .topLeading) {
-                if let imageName = locationImageName,
-                   let uiImage = loadImage(named: imageName) {
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: size, height: size)
-                        .clipped()
-                        .overlay(Color.black.opacity(0.2))
-                } else {
-                    Color.black
-                        .frame(width: size, height: size)
-                }
+            if let locationWeather,
+               status == .authorizedWhenInUse || status == .authorizedAlways {
+                weatherCard(
+                    cityName: locationName,
+                    imageName: locationImageName,
+                    weather: locationWeather,
+                    todayPrecipitationSum: locationTodayPrecipitationSum,
+                    size: size
+                )
+            } else {
+                ZStack(alignment: .topLeading) {
+                    if let imageName = locationImageName,
+                       let uiImage = loadImage(named: imageName) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: size, height: size)
+                            .clipped()
+                            .overlay(Color.black.opacity(0.2))
+                    } else {
+                        Color.black
+                            .frame(width: size, height: size)
+                    }
 
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Current Location")
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(.white)
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Current Location")
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(.white)
 
-                    switch status {
-                    case .notDetermined:
-                        HStack(spacing: 8) {
-                            ProgressView()
-                                .tint(.white)
-                            Text("Requesting permission…")
+                        switch status {
+                        case .notDetermined:
+                            HStack(spacing: 8) {
+                                ProgressView()
+                                    .tint(.white)
+                                Text("Requesting permission…")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.white.opacity(0.85))
+                            }
+                        case .denied, .restricted:
+                            Text("Location access is off")
                                 .font(.subheadline)
                                 .foregroundStyle(.white.opacity(0.85))
-                        }
-                    case .denied, .restricted:
-                        Text("Location access is off")
-                            .font(.subheadline)
-                            .foregroundStyle(.white.opacity(0.85))
-                    default:
-                        if let locationError {
-                            Text(locationError)
-                                .font(.subheadline)
-                                .foregroundStyle(.white.opacity(0.85))
-                        } else {
-                            Text("Fetching local weather…")
-                                .font(.subheadline)
-                                .foregroundStyle(.white.opacity(0.85))
+                        default:
+                            if let locationError {
+                                Text(locationError)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.white.opacity(0.85))
+                            } else {
+                                Text("Fetching local weather…")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.white.opacity(0.85))
+                            }
                         }
                     }
+                    .padding(16)
+                    .frame(width: size, height: size, alignment: .leading)
                 }
-                .padding(16)
-                .frame(width: size, height: size, alignment: .leading)
+                .frame(width: size, height: size, alignment: .topLeading)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(.white.opacity(0.2))
+                )
             }
-            .frame(width: size, height: size, alignment: .topLeading)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(.white.opacity(0.2))
-            )
         }
     }
 
@@ -532,6 +523,63 @@ struct ContentView: View {
             return image
         }
         return nil
+    }
+}
+
+private struct CityWeatherEntry: Identifiable {
+    let id = UUID()
+    let name: String
+    let normalizedKey: String
+    let imageName: String?
+    let coordinate: CLLocationCoordinate2D
+    let weather: CurrentWeather
+    let todayPrecipitationSum: Double?
+    let forecasts: [DailyForecast]
+    let hourlyForecasts: [HourlyForecast]
+    let allHourlyForecasts: [HourlyForecast]
+}
+
+private final class CitySearchCompleter: NSObject, ObservableObject, MKLocalSearchCompleterDelegate {
+    @Published var results: [MKLocalSearchCompletion] = []
+    var query: String = "" {
+        didSet {
+            let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                results = []
+                return
+            }
+            completer.queryFragment = trimmed
+        }
+    }
+
+    private let completer: MKLocalSearchCompleter = {
+        let completer = MKLocalSearchCompleter()
+        completer.resultTypes = .address
+        return completer
+    }()
+
+    override init() {
+        super.init()
+        completer.delegate = self
+    }
+
+    func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
+        results = completer.results
+    }
+
+    func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error) {
+        results = []
+    }
+}
+
+private enum CitySearchError: LocalizedError {
+    case notFound
+
+    var errorDescription: String? {
+        switch self {
+        case .notFound:
+            return "No matching city found."
+        }
     }
 }
 
