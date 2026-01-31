@@ -7,6 +7,7 @@
 
 import SwiftUI
 import UIKit
+import CoreLocation
 
 struct ContentView: View {
     private enum SelectedCity: String {
@@ -40,6 +41,13 @@ struct ContentView: View {
     @State private var dubaiAllHourlyForecasts: [HourlyForecast] = []
     @State private var showsSettings = false
     @State private var selectedCity: SelectedCity = .zurich
+    @StateObject private var locationManager = LocationManager()
+    @State private var locationWeather: CurrentWeather?
+    @State private var locationTodayPrecipitationSum: Double?
+    @State private var locationName: String = "Current Location"
+    @State private var locationImageName: String?
+    @State private var locationError: String?
+    @State private var lastFetchedLocation: CLLocation?
     @AppStorage("temperatureUnit") private var temperatureUnitRaw: String = ""
     @AppStorage("precipitationUnit") private var precipitationUnitRaw: String = ""
 
@@ -78,6 +86,8 @@ struct ContentView: View {
                             let size = cardSize(for: UIScreen.main.bounds.width)
                             ScrollView(.horizontal, showsIndicators: true) {
                                 HStack(alignment: .top, spacing: 16) {
+                                    locationCard(size: size)
+
                                     weatherCard(
                                         cityName: "Zurich",
                                         imageName: "zurich_1",
@@ -228,7 +238,17 @@ struct ContentView: View {
             )
         }
         .task {
+            locationManager.requestAuthorization()
             await loadWeather()
+        }
+        .onChange(of: locationManager.lastLocation) { _, newLocation in
+            guard let newLocation else { return }
+            Task {
+                await loadLocationWeather(for: newLocation)
+            }
+        }
+        .onChange(of: locationManager.placemark) { _, newPlacemark in
+            updateLocationMetadata(from: newPlacemark)
         }
     }
 
@@ -289,7 +309,7 @@ struct ContentView: View {
     @ViewBuilder
     private func weatherCard(
         cityName: String,
-        imageName: String,
+        imageName: String?,
         weather: CurrentWeather,
         todayPrecipitationSum: Double?,
         size: CGFloat
@@ -300,7 +320,7 @@ struct ContentView: View {
             ?? (Locale.current.usesMetricSystem ? .millimeters : .inches)
 
         ZStack(alignment: .topLeading) {
-            if let uiImage = loadImage(named: imageName) {
+            if let imageName, let uiImage = loadImage(named: imageName) {
                 Image(uiImage: uiImage)
                     .resizable()
                     .scaledToFill()
@@ -375,6 +395,128 @@ struct ContentView: View {
         let spacing: CGFloat = 16
         let maxSize = (availableWidth - horizontalPadding - spacing) / 2
         return min(190, max(170, maxSize))
+    }
+
+    @MainActor
+    private func loadLocationWeather(for location: CLLocation) async {
+        if let lastFetchedLocation, lastFetchedLocation.distance(from: location) < 1000 {
+            return
+        }
+        lastFetchedLocation = location
+        do {
+            let snapshot = try await WeatherService.shared.fetchWeatherSnapshot(
+                latitude: location.coordinate.latitude,
+                longitude: location.coordinate.longitude
+            )
+            locationWeather = snapshot.current
+            locationTodayPrecipitationSum = snapshot.todayPrecipitationSum
+            locationError = nil
+        } catch {
+            locationError = error.localizedDescription
+        }
+    }
+
+    private func updateLocationMetadata(from placemark: CLPlacemark?) {
+        let fallback = "Current Location"
+        guard let placemark else {
+            locationName = fallback
+            locationImageName = nil
+            return
+        }
+
+        let locality = placemark.locality ?? placemark.subAdministrativeArea ?? placemark.administrativeArea
+        locationName = locality ?? fallback
+        locationImageName = imageNameForCity(locationName)
+    }
+
+    private func imageNameForCity(_ cityName: String) -> String? {
+        let normalized = cityName
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if normalized.contains("zurich") {
+            return "zurich_1"
+        }
+        if normalized.contains("san francisco") {
+            return "san_francisco_1"
+        }
+        if normalized.contains("miami") {
+            return "miami"
+        }
+        if normalized.contains("dubai") {
+            return "dubai"
+        }
+        return nil
+    }
+
+    @ViewBuilder
+    private func locationCard(size: CGFloat) -> some View {
+        let status = locationManager.authorizationStatus
+
+        if let locationWeather,
+           status == .authorizedWhenInUse || status == .authorizedAlways {
+            weatherCard(
+                cityName: locationName,
+                imageName: locationImageName,
+                weather: locationWeather,
+                todayPrecipitationSum: locationTodayPrecipitationSum,
+                size: size
+            )
+        } else {
+            ZStack(alignment: .topLeading) {
+                if let imageName = locationImageName,
+                   let uiImage = loadImage(named: imageName) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: size, height: size)
+                        .clipped()
+                        .overlay(Color.black.opacity(0.2))
+                } else {
+                    Color.black
+                        .frame(width: size, height: size)
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Current Location")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.white)
+
+                    switch status {
+                    case .notDetermined:
+                        HStack(spacing: 8) {
+                            ProgressView()
+                                .tint(.white)
+                            Text("Requesting permission…")
+                                .font(.subheadline)
+                                .foregroundStyle(.white.opacity(0.85))
+                        }
+                    case .denied, .restricted:
+                        Text("Location access is off")
+                            .font(.subheadline)
+                            .foregroundStyle(.white.opacity(0.85))
+                    default:
+                        if let locationError {
+                            Text(locationError)
+                                .font(.subheadline)
+                                .foregroundStyle(.white.opacity(0.85))
+                        } else {
+                            Text("Fetching local weather…")
+                                .font(.subheadline)
+                                .foregroundStyle(.white.opacity(0.85))
+                        }
+                    }
+                }
+                .padding(16)
+                .frame(width: size, height: size, alignment: .leading)
+            }
+            .frame(width: size, height: size, alignment: .topLeading)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(.white.opacity(0.2))
+            )
+        }
     }
 
     private func loadImage(named name: String) -> UIImage? {
