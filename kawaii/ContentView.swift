@@ -432,7 +432,7 @@ struct ContentView: View {
                     Text("Today")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                    Text(WeatherService.description(for: forecast.weathercode))
+                    Text(todayOverviewDescription(forecast: forecast, current: current, hourlyForecasts: hourlyForecasts))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -481,7 +481,11 @@ struct ContentView: View {
                             )
                         }
                     }
-                    .padding(.vertical, 4)
+                    .padding(8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(Color(uiColor: .tertiarySystemGroupedBackground))
+                    )
                 }
             }
         }
@@ -600,6 +604,62 @@ struct ContentView: View {
         }
     }
 
+    // Uses current hour + next 5 hours to summarize the today overview text.
+    private func todayOverviewDescription(
+        forecast: DailyForecast,
+        current: CurrentWeather,
+        hourlyForecasts: [HourlyForecast]
+    ) -> String {
+        let upcoming = hourlyForecasts
+
+        if upcoming.isEmpty {
+            return WeatherService.description(for: forecast.weathercode)
+        }
+
+        let precipitationLikely = upcoming.contains { forecast in
+            if let precipitation = forecast.precipitation, precipitation > 0.1 {
+                return true
+            }
+            if let probability = forecast.precipitationProbability, probability >= 40 {
+                return true
+            }
+            return false
+        }
+
+        if precipitationLikely {
+            let dominant = dominantWeatherCode(in: upcoming) ?? current.weathercode
+            return WeatherService.description(for: dominant)
+        }
+
+        let nonWetCodes = upcoming.filter { !Self.isWetWeatherCode($0.weathercode) }
+        let dominant = dominantWeatherCode(in: nonWetCodes.isEmpty ? upcoming : nonWetCodes) ?? current.weathercode
+        return WeatherService.description(for: dominant)
+    }
+
+    private func dominantWeatherCode(in hourly: [HourlyForecast]) -> Int? {
+        guard !hourly.isEmpty else {
+            return nil
+        }
+        let counts = hourly.reduce(into: [Int: Int]()) { result, forecast in
+            result[forecast.weathercode, default: 0] += 1
+        }
+        return counts.max { lhs, rhs in
+            if lhs.value == rhs.value {
+                return lhs.key > rhs.key
+            }
+            return lhs.value < rhs.value
+        }?.key
+    }
+
+    private static func isWetWeatherCode(_ code: Int) -> Bool {
+        switch code {
+        case 51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 85, 86, 95, 96, 99:
+            return true
+        default:
+            return false
+        }
+    }
+
     private func hourlyForecastCard(
         forecast: HourlyForecast,
         isFirst: Bool,
@@ -649,10 +709,6 @@ struct ContentView: View {
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(uiColor: .tertiarySystemGroupedBackground))
-        )
     }
 
     private func hourLabel(for dateTime: String) -> String {
