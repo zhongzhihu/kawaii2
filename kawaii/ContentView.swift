@@ -22,18 +22,22 @@ struct ContentView: View {
     @State private var zurichTodayPrecipitationSum: Double?
     @State private var zurichForecasts: [DailyForecast] = []
     @State private var zurichHourlyForecasts: [HourlyForecast] = []
+    @State private var zurichAllHourlyForecasts: [HourlyForecast] = []
     @State private var sanFranciscoWeather: CurrentWeather?
     @State private var sanFranciscoTodayPrecipitationSum: Double?
     @State private var sanFranciscoForecasts: [DailyForecast] = []
     @State private var sanFranciscoHourlyForecasts: [HourlyForecast] = []
+    @State private var sanFranciscoAllHourlyForecasts: [HourlyForecast] = []
     @State private var miamiWeather: CurrentWeather?
     @State private var miamiTodayPrecipitationSum: Double?
     @State private var miamiForecasts: [DailyForecast] = []
     @State private var miamiHourlyForecasts: [HourlyForecast] = []
+    @State private var miamiAllHourlyForecasts: [HourlyForecast] = []
     @State private var dubaiWeather: CurrentWeather?
     @State private var dubaiTodayPrecipitationSum: Double?
     @State private var dubaiForecasts: [DailyForecast] = []
     @State private var dubaiHourlyForecasts: [HourlyForecast] = []
+    @State private var dubaiAllHourlyForecasts: [HourlyForecast] = []
     @State private var showsSettings = false
     @State private var selectedCity: SelectedCity = .zurich
     @AppStorage("temperatureUnit") private var temperatureUnitRaw: String = ""
@@ -154,41 +158,45 @@ struct ContentView: View {
                             switch selectedCity {
                             case .zurich:
                                 if !zurichForecasts.isEmpty {
-                                    cityForecastSection(
+                                    CityForecastView(
                                         cityName: "Zurich",
                                         forecasts: zurichForecasts,
                                         current: zurichWeather,
-                                        hourlyForecasts: zurichHourlyForecasts
+                                        upcomingHourlyForecasts: zurichHourlyForecasts,
+                                        allHourlyForecasts: zurichAllHourlyForecasts
                                     )
                                     .padding(.horizontal)
                                 }
                             case .sanFrancisco:
                                 if !sanFranciscoForecasts.isEmpty {
-                                    cityForecastSection(
+                                    CityForecastView(
                                         cityName: "San Francisco",
                                         forecasts: sanFranciscoForecasts,
                                         current: sanFranciscoWeather,
-                                        hourlyForecasts: sanFranciscoHourlyForecasts
+                                        upcomingHourlyForecasts: sanFranciscoHourlyForecasts,
+                                        allHourlyForecasts: sanFranciscoAllHourlyForecasts
                                     )
                                     .padding(.horizontal)
                                 }
                             case .miami:
                                 if !miamiForecasts.isEmpty {
-                                    cityForecastSection(
+                                    CityForecastView(
                                         cityName: "Miami",
                                         forecasts: miamiForecasts,
                                         current: miamiWeather,
-                                        hourlyForecasts: miamiHourlyForecasts
+                                        upcomingHourlyForecasts: miamiHourlyForecasts,
+                                        allHourlyForecasts: miamiAllHourlyForecasts
                                     )
                                     .padding(.horizontal)
                                 }
                             case .dubai:
                                 if !dubaiForecasts.isEmpty {
-                                    cityForecastSection(
+                                    CityForecastView(
                                         cityName: "Dubai",
                                         forecasts: dubaiForecasts,
                                         current: dubaiWeather,
-                                        hourlyForecasts: dubaiHourlyForecasts
+                                        upcomingHourlyForecasts: dubaiHourlyForecasts,
+                                        allHourlyForecasts: dubaiAllHourlyForecasts
                                     )
                                     .padding(.horizontal)
                                 }
@@ -256,18 +264,22 @@ struct ContentView: View {
             self.zurichTodayPrecipitationSum = zurich.todayPrecipitationSum
             self.zurichForecasts = zurich.dailyForecasts
             self.zurichHourlyForecasts = zurich.hourlyForecasts
+            self.zurichAllHourlyForecasts = zurich.allHourlyForecasts
             self.sanFranciscoWeather = sanFrancisco.current
             self.sanFranciscoTodayPrecipitationSum = sanFrancisco.todayPrecipitationSum
             self.sanFranciscoForecasts = sanFrancisco.dailyForecasts
             self.sanFranciscoHourlyForecasts = sanFrancisco.hourlyForecasts
+            self.sanFranciscoAllHourlyForecasts = sanFrancisco.allHourlyForecasts
             self.miamiWeather = miami.current
             self.miamiTodayPrecipitationSum = miami.todayPrecipitationSum
             self.miamiForecasts = miami.dailyForecasts
             self.miamiHourlyForecasts = miami.hourlyForecasts
+            self.miamiAllHourlyForecasts = miami.allHourlyForecasts
             self.dubaiWeather = dubai.current
             self.dubaiTodayPrecipitationSum = dubai.todayPrecipitationSum
             self.dubaiForecasts = dubai.dailyForecasts
             self.dubaiHourlyForecasts = dubai.hourlyForecasts
+            self.dubaiAllHourlyForecasts = dubai.allHourlyForecasts
         } catch {
             self.errorMessage = error.localizedDescription
         }
@@ -365,408 +377,6 @@ struct ContentView: View {
         return min(190, max(170, maxSize))
     }
 
-    @ViewBuilder
-    private func cityForecastSection(
-        cityName: String,
-        forecasts: [DailyForecast],
-        current: CurrentWeather,
-        hourlyForecasts: [HourlyForecast]
-    ) -> some View {
-        let temperatureUnit = TemperatureUnit(rawValue: temperatureUnitRaw)
-            ?? (Locale.current.usesMetricSystem ? .celsius : .fahrenheit)
-        let precipitationUnit = PrecipitationUnit(rawValue: precipitationUnitRaw)
-            ?? (Locale.current.usesMetricSystem ? .millimeters : .inches)
-
-        let upcoming = Array(forecasts.dropFirst().prefix(7))
-
-        VStack(alignment: .leading, spacing: 14) {
-            if let today = forecasts.first {
-                todayDetailCard(
-                    cityName: cityName,
-                    forecast: today,
-                    current: current,
-                    hourlyForecasts: hourlyForecasts,
-                    temperatureUnit: temperatureUnit,
-                    precipitationUnit: precipitationUnit
-                )
-            }
-
-            VStack(spacing: 0) {
-                ForEach(upcoming) { forecast in
-                    forecastRow(
-                        forecast: forecast,
-                        temperatureUnit: temperatureUnit,
-                        precipitationUnit: precipitationUnit
-                    )
-
-                    if forecast.id != upcoming.last?.id {
-                        Divider()
-                    }
-                }
-            }
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color(uiColor: .secondarySystemGroupedBackground))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(Color.white.opacity(0.08))
-            )
-        }
-    }
-
-    private func todayDetailCard(
-        cityName: String,
-        forecast: DailyForecast,
-        current: CurrentWeather,
-        hourlyForecasts: [HourlyForecast],
-        temperatureUnit: TemperatureUnit,
-        precipitationUnit: PrecipitationUnit
-    ) -> some View {
-        let overviewCode = todayOverviewCode(forecast: forecast, current: current, hourlyForecasts: hourlyForecasts)
-
-        return VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 12) {
-                weatherIcon(for: overviewCode, size: 30)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(cityName)
-                        .font(.headline)
-                    Text("Today")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Text(WeatherService.description(for: overviewCode))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(temperatureValue(forecast.temperatureMax, unit: temperatureUnit))
-                        .font(.headline)
-                    Text(temperatureValue(forecast.temperatureMin, unit: temperatureUnit))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            HStack(spacing: 16) {
-                if let precipitationSum = forecast.precipitationSum {
-                    labelWithIcon(
-                        icon: "drop",
-                        text: precipitationUnit.formattedAmount(precipitationInMillimeters: precipitationSum)
-                    )
-                }
-
-                if let probability = forecast.precipitationProbabilityMax, probability > 0 {
-                    labelWithIcon(
-                        icon: "cloud.rain",
-                        text: String(format: "%.0f%%", probability)
-                    )
-                }
-
-                labelWithIcon(
-                    icon: "wind",
-                    text: String(format: "%.0f km/h", current.windspeed)
-                )
-            }
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-
-            if !hourlyForecasts.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        ForEach(Array(hourlyForecasts.enumerated()), id: \.element.id) { index, forecast in
-                            hourlyForecastCard(
-                                forecast: forecast,
-                                isFirst: index == 0,
-                                temperatureUnit: temperatureUnit,
-                                precipitationUnit: precipitationUnit
-                            )
-                        }
-                    }
-                    .padding(8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(Color(uiColor: .tertiarySystemGroupedBackground))
-                    )
-                }
-            }
-        }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color(uiColor: .secondarySystemGroupedBackground))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.white.opacity(0.08))
-        )
-    }
-
-    private func forecastRow(
-        forecast: DailyForecast,
-        temperatureUnit: TemperatureUnit,
-        precipitationUnit: PrecipitationUnit
-    ) -> some View {
-        HStack(spacing: 12) {
-            Text(dayLabel(for: forecast.date))
-                .font(.subheadline)
-                .foregroundStyle(.primary)
-                .frame(width: 48, alignment: .leading)
-
-            weatherIcon(for: forecast.weathercode, size: 22)
-
-            Text(WeatherService.description(for: forecast.weathercode))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-
-            if let probability = forecast.precipitationProbabilityMax, probability > 0 {
-                HStack(spacing: 4) {
-                    Image(systemName: "drop.fill")
-                        .font(.caption)
-                    Text(String(format: "%.0f%%", probability))
-                        .font(.caption)
-                }
-                .foregroundStyle(.blue)
-            }
-
-            if let precipitationSum = forecast.precipitationSum, precipitationSum > 0 {
-                Text(precipitationUnit.formattedAmount(precipitationInMillimeters: precipitationSum))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            Text(temperatureValue(forecast.temperatureMin, unit: temperatureUnit))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
-            Text(temperatureValue(forecast.temperatureMax, unit: temperatureUnit))
-                .font(.subheadline.weight(.semibold))
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-    }
-
-    private func dayLabel(for dateString: String) -> String {
-        if let date = Self.isoDateFormatter.date(from: dateString),
-           Calendar.current.isDateInToday(date) {
-            return "Today"
-        }
-        if let date = Self.isoDateFormatter.date(from: dateString) {
-            return Self.weekdayFormatter.string(from: date)
-        }
-        return dateString
-    }
-
-    private func temperatureValue(_ value: Double, unit: TemperatureUnit) -> String {
-        let converted: Double
-        switch unit {
-        case .celsius:
-            converted = value
-        case .fahrenheit:
-            converted = (value * 9 / 5) + 32
-        }
-        return String(format: "%.0f%@", converted, unit.symbol)
-    }
-
-    private func weatherIcon(for code: Int, size: CGFloat, isNight: Bool = false) -> some View {
-        if isNight, let nightSymbolName = nightSymbolName(for: code) {
-            return AnyView(
-                Image(systemName: nightSymbolName)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: size, height: size)
-                    .foregroundStyle(.secondary)
-            )
-        }
-
-        if UIImage(named: WeatherService.iconName(for: code)) != nil {
-            return AnyView(
-                Image(WeatherService.iconName(for: code))
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: size, height: size)
-            )
-        }
-        return AnyView(
-            Image(systemName: WeatherService.symbolName(for: code))
-                .resizable()
-                .scaledToFit()
-                .frame(width: size, height: size)
-                .foregroundStyle(.secondary)
-        )
-    }
-
-    private func labelWithIcon(icon: String, text: String) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: icon)
-            Text(text)
-        }
-    }
-
-    // Uses current hour + next 5 hours to summarize the today overview.
-    private func todayOverviewCode(
-        forecast: DailyForecast,
-        current: CurrentWeather,
-        hourlyForecasts: [HourlyForecast]
-    ) -> Int {
-        let upcoming = hourlyForecasts
-
-        if upcoming.isEmpty {
-            return forecast.weathercode
-        }
-
-        let precipitationLikely = upcoming.contains { forecast in
-            if let precipitation = forecast.precipitation, precipitation > 0.1 {
-                return true
-            }
-            if let probability = forecast.precipitationProbability, probability >= 40 {
-                return true
-            }
-            return false
-        }
-
-        if precipitationLikely {
-            let dominant = dominantWeatherCode(in: upcoming) ?? current.weathercode
-            return dominant
-        }
-
-        let nonWetCodes = upcoming.filter { !Self.isWetWeatherCode($0.weathercode) }
-        let dominant = dominantWeatherCode(in: nonWetCodes.isEmpty ? upcoming : nonWetCodes) ?? current.weathercode
-        return dominant
-    }
-
-    private func dominantWeatherCode(in hourly: [HourlyForecast]) -> Int? {
-        guard !hourly.isEmpty else {
-            return nil
-        }
-        let counts = hourly.reduce(into: [Int: Int]()) { result, forecast in
-            result[forecast.weathercode, default: 0] += 1
-        }
-        return counts.max { lhs, rhs in
-            if lhs.value == rhs.value {
-                return lhs.key > rhs.key
-            }
-            return lhs.value < rhs.value
-        }?.key
-    }
-
-    private static func isWetWeatherCode(_ code: Int) -> Bool {
-        switch code {
-        case 51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 85, 86, 95, 96, 99:
-            return true
-        default:
-            return false
-        }
-    }
-
-    private func hourlyForecastCard(
-        forecast: HourlyForecast,
-        isFirst: Bool,
-        temperatureUnit: TemperatureUnit,
-        precipitationUnit: PrecipitationUnit
-    ) -> some View {
-        VStack(spacing: 6) {
-            Text(hourLabel(for: forecast.time))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Text(temperatureValue(forecast.temperature, unit: temperatureUnit))
-                .font(.subheadline.weight(.semibold))
-
-            weatherIcon(
-                for: forecast.weathercode,
-                size: 18,
-                isNight: isNightTime(for: forecast.time)
-            )
-
-            let precipitationText: String? = {
-                if let precipitation = forecast.precipitation, precipitation > 0 {
-                    return precipitationUnit.formattedAmount(precipitationInMillimeters: precipitation)
-                }
-                return nil
-            }()
-
-            let probabilityText: String? = {
-                if let probability = forecast.precipitationProbability, probability > 0 {
-                    return String(format: "%.0f%%", probability)
-                }
-                return nil
-            }()
-
-            if precipitationText != nil || probabilityText != nil {
-                VStack(spacing: 2) {
-                    if let precipitationText {
-                        Text(precipitationText)
-                    }
-                    if let probabilityText {
-                        Text(probabilityText)
-                    }
-                }
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            }
-        }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 10)
-    }
-
-    private func hourLabel(for dateTime: String) -> String {
-        if let date = Self.isoDateTimeFormatter.date(from: dateTime) {
-            return Self.hourFormatter.string(from: date)
-        }
-        return dateTime
-    }
-
-    private func isNightTime(for dateTime: String) -> Bool {
-        guard let date = Self.isoDateTimeFormatter.date(from: dateTime) else {
-            return false
-        }
-        let hour = Calendar.autoupdatingCurrent.component(.hour, from: date)
-        return hour < 6 || hour >= 19
-    }
-
-    private func nightSymbolName(for code: Int) -> String? {
-        switch code {
-        case 0:
-            return "moon.stars.fill"
-        case 1, 2:
-            return "cloud.moon.fill"
-        case 3:
-            return "cloud.fill"
-        case 45, 48:
-            return "cloud.fog.fill"
-        case 51, 53:
-            return "cloud.drizzle.fill"
-        case 55:
-            return "cloud.heavyrain.fill"
-        case 56, 57:
-            return "cloud.sleet.fill"
-        case 61, 63:
-            return "cloud.rain.fill"
-        case 65:
-            return "cloud.heavyrain.fill"
-        case 66, 67:
-            return "cloud.sleet.fill"
-        case 71, 73:
-            return "cloud.snow.fill"
-        case 75, 77:
-            return "snowflake"
-        case 80, 81:
-            return "cloud.rain.fill"
-        case 82:
-            return "cloud.heavyrain.fill"
-        case 85, 86:
-            return "cloud.snow.fill"
-        case 95, 96, 99:
-            return "cloud.bolt.rain.fill"
-        default:
-            return nil
-        }
-    }
-
     private func loadImage(named name: String) -> UIImage? {
         if let assetImage = UIImage(named: name) {
             return assetImage
@@ -817,6 +427,438 @@ private extension ContentView {
         formatter.dateFormat = usesAmPm ? "h a" : "HH"
         return formatter
     }()
+}
+
+struct CityForecastView: View {
+    let cityName: String
+    let forecasts: [DailyForecast]
+    let current: CurrentWeather
+    let upcomingHourlyForecasts: [HourlyForecast]
+    let allHourlyForecasts: [HourlyForecast]
+
+    @AppStorage("temperatureUnit") private var temperatureUnitRaw: String = ""
+    @AppStorage("precipitationUnit") private var precipitationUnitRaw: String = ""
+
+    @State private var selectedDate: String?
+
+    var body: some View {
+        let temperatureUnit = TemperatureUnit(rawValue: temperatureUnitRaw)
+            ?? (Locale.current.usesMetricSystem ? .celsius : .fahrenheit)
+        let precipitationUnit = PrecipitationUnit(rawValue: precipitationUnitRaw)
+            ?? (Locale.current.usesMetricSystem ? .millimeters : .inches)
+
+        let selectedForecast = forecasts.first(where: { $0.date == selectedDate }) ?? forecasts.first
+
+        let hourlyData: [HourlyForecast] = {
+            guard let selected = selectedForecast else { return [] }
+            if selected.id == forecasts.first?.id {
+                return upcomingHourlyForecasts
+            } else {
+                return allHourlyForecasts.filter { $0.time.hasPrefix(selected.date) }
+            }
+        }()
+
+        VStack(alignment: .leading, spacing: 14) {
+            if let selected = selectedForecast {
+                detailCard(
+                    cityName: cityName,
+                    forecast: selected,
+                    current: current,
+                    hourlyForecasts: hourlyData,
+                    isToday: selected.id == forecasts.first?.id,
+                    temperatureUnit: temperatureUnit,
+                    precipitationUnit: precipitationUnit
+                )
+            }
+
+            VStack(spacing: 0) {
+                ForEach(forecasts) { forecast in
+                    forecastRow(
+                        forecast: forecast,
+                        isSelected: selectedForecast?.id == forecast.id,
+                        temperatureUnit: temperatureUnit,
+                        precipitationUnit: precipitationUnit
+                    )
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        withAnimation {
+                            selectedDate = forecast.date
+                        }
+                    }
+
+                    if forecast.id != forecasts.last?.id {
+                        Divider()
+                    }
+                }
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color(uiColor: .secondarySystemGroupedBackground))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(Color.white.opacity(0.08))
+            )
+        }
+    }
+
+    private func detailCard(
+        cityName: String,
+        forecast: DailyForecast,
+        current: CurrentWeather,
+        hourlyForecasts: [HourlyForecast],
+        isToday: Bool,
+        temperatureUnit: TemperatureUnit,
+        precipitationUnit: PrecipitationUnit
+    ) -> some View {
+        let overviewCode: Int
+        if isToday {
+            overviewCode = todayOverviewCode(forecast: forecast, current: current, hourlyForecasts: hourlyForecasts)
+        } else {
+            overviewCode = forecast.weathercode
+        }
+
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                weatherIcon(for: overviewCode, size: 30)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(cityName)
+                        .font(.headline)
+                    Text(isToday ? "Today" : dayLabel(for: forecast.date))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Text(WeatherService.description(for: overviewCode))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(temperatureValue(forecast.temperatureMax, unit: temperatureUnit))
+                        .font(.headline)
+                    Text(temperatureValue(forecast.temperatureMin, unit: temperatureUnit))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            HStack(spacing: 16) {
+                if let precipitationSum = forecast.precipitationSum {
+                    labelWithIcon(
+                        icon: "drop",
+                        text: precipitationUnit.formattedAmount(precipitationInMillimeters: precipitationSum)
+                    )
+                }
+
+                if let probability = forecast.precipitationProbabilityMax, probability > 0 {
+                    labelWithIcon(
+                        icon: "cloud.rain",
+                        text: String(format: "%.0f%%", probability)
+                    )
+                }
+
+                if isToday {
+                    labelWithIcon(
+                        icon: "wind",
+                        text: String(format: "%.0f km/h", current.windspeed)
+                    )
+                }
+            }
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+
+            if !hourlyForecasts.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .top, spacing: 12) {
+                        ForEach(Array(hourlyForecasts.enumerated()), id: \.element.id) { index, forecast in
+                            hourlyForecastCard(
+                                forecast: forecast,
+                                temperatureUnit: temperatureUnit,
+                                precipitationUnit: precipitationUnit
+                            )
+                        }
+                    }
+                    .padding(8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(Color(uiColor: .tertiarySystemGroupedBackground))
+                    )
+                }
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemGroupedBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.white.opacity(0.08))
+        )
+    }
+
+    private func forecastRow(
+        forecast: DailyForecast,
+        isSelected: Bool,
+        temperatureUnit: TemperatureUnit,
+        precipitationUnit: PrecipitationUnit
+    ) -> some View {
+        HStack(spacing: 12) {
+            Text(dayLabel(for: forecast.date))
+                .font(.subheadline)
+                .foregroundStyle(.primary)
+                .frame(width: 48, alignment: .leading)
+
+            weatherIcon(for: forecast.weathercode, size: 22)
+
+            Text(WeatherService.description(for: forecast.weathercode))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+
+            if let probability = forecast.precipitationProbabilityMax, probability > 0 {
+                HStack(spacing: 4) {
+                    Image(systemName: "drop.fill")
+                        .font(.caption)
+                    Text(String(format: "%.0f%%", probability))
+                        .font(.caption)
+                }
+                .foregroundStyle(.blue)
+            }
+
+            if let precipitationSum = forecast.precipitationSum, precipitationSum > 0 {
+                Text(precipitationUnit.formattedAmount(precipitationInMillimeters: precipitationSum))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Text(temperatureValue(forecast.temperatureMin, unit: temperatureUnit))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            Text(temperatureValue(forecast.temperatureMax, unit: temperatureUnit))
+                .font(.subheadline.weight(.semibold))
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(isSelected ? Color.white.opacity(0.1) : Color.clear)
+    }
+
+    private func todayOverviewCode(
+        forecast: DailyForecast,
+        current: CurrentWeather,
+        hourlyForecasts: [HourlyForecast]
+    ) -> Int {
+        let upcoming = hourlyForecasts
+
+        if upcoming.isEmpty {
+            return forecast.weathercode
+        }
+
+        let precipitationLikely = upcoming.contains { forecast in
+            if let precipitation = forecast.precipitation, precipitation > 0.1 {
+                return true
+            }
+            if let probability = forecast.precipitationProbability, probability >= 40 {
+                return true
+            }
+            return false
+        }
+
+        if precipitationLikely {
+            let dominant = dominantWeatherCode(in: upcoming) ?? current.weathercode
+            return dominant
+        }
+
+        let nonWetCodes = upcoming.filter { !isWetWeatherCode($0.weathercode) }
+        let dominant = dominantWeatherCode(in: nonWetCodes.isEmpty ? upcoming : nonWetCodes) ?? current.weathercode
+        return dominant
+    }
+
+    private func dominantWeatherCode(in hourly: [HourlyForecast]) -> Int? {
+        guard !hourly.isEmpty else {
+            return nil
+        }
+        let counts = hourly.reduce(into: [Int: Int]()) { result, forecast in
+            result[forecast.weathercode, default: 0] += 1
+        }
+        return counts.max { lhs, rhs in
+            if lhs.value == rhs.value {
+                return lhs.key > rhs.key
+            }
+            return lhs.value < rhs.value
+        }?.key
+    }
+
+    private func isWetWeatherCode(_ code: Int) -> Bool {
+        switch code {
+        case 51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 85, 86, 95, 96, 99:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func hourlyForecastCard(
+        forecast: HourlyForecast,
+        temperatureUnit: TemperatureUnit,
+        precipitationUnit: PrecipitationUnit
+    ) -> some View {
+        VStack(spacing: 6) {
+            Text(hourLabel(for: forecast.time))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Text(temperatureValue(forecast.temperature, unit: temperatureUnit))
+                .font(.subheadline.weight(.semibold))
+
+            weatherIcon(
+                for: forecast.weathercode,
+                size: 18,
+                isNight: isNightTime(for: forecast.time)
+            )
+
+            let precipitationText: String? = {
+                if let precipitation = forecast.precipitation, precipitation > 0 {
+                    return precipitationUnit.formattedAmount(precipitationInMillimeters: precipitation)
+                }
+                return nil
+            }()
+
+            let probabilityText: String? = {
+                if let probability = forecast.precipitationProbability, probability > 0 {
+                    return String(format: "%.0f%%", probability)
+                }
+                return nil
+            }()
+
+            let hasPrecipInfo = precipitationText != nil || probabilityText != nil
+
+            VStack(spacing: 2) {
+                Text(precipitationText ?? " ")
+                Text(probabilityText ?? " ")
+            }
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .opacity(hasPrecipInfo ? 1 : 0)
+            .frame(height: 26, alignment: .top)
+            .accessibilityHidden(!hasPrecipInfo)
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 10)
+    }
+
+    private func dayLabel(for dateString: String) -> String {
+        if let date = ContentView.isoDateFormatter.date(from: dateString),
+           Calendar.current.isDateInToday(date) {
+            return "Today"
+        }
+        if let date = ContentView.isoDateFormatter.date(from: dateString) {
+            return ContentView.weekdayFormatter.string(from: date)
+        }
+        return dateString
+    }
+
+    private func temperatureValue(_ value: Double, unit: TemperatureUnit) -> String {
+        let converted: Double
+        switch unit {
+        case .celsius:
+            converted = value
+        case .fahrenheit:
+            converted = (value * 9 / 5) + 32
+        }
+        return String(format: "%.0f%@", converted, unit.symbol)
+    }
+
+    private func weatherIcon(for code: Int, size: CGFloat, isNight: Bool = false) -> some View {
+        if isNight, let nightSymbolName = nightSymbolName(for: code) {
+            return AnyView(
+                Image(systemName: nightSymbolName)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: size, height: size)
+                    .foregroundStyle(.secondary)
+            )
+        }
+
+        if UIImage(named: WeatherService.iconName(for: code)) != nil {
+            return AnyView(
+                Image(WeatherService.iconName(for: code))
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: size, height: size)
+            )
+        }
+        return AnyView(
+            Image(systemName: WeatherService.symbolName(for: code))
+                .resizable()
+                .scaledToFit()
+                .frame(width: size, height: size)
+                .foregroundStyle(.secondary)
+        )
+    }
+
+    private func labelWithIcon(icon: String, text: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+            Text(text)
+        }
+    }
+
+    private func hourLabel(for dateTime: String) -> String {
+        if let date = ContentView.isoDateTimeFormatter.date(from: dateTime) {
+            return ContentView.hourFormatter.string(from: date)
+        }
+        return dateTime
+    }
+
+    private func isNightTime(for dateTime: String) -> Bool {
+        guard let date = ContentView.isoDateTimeFormatter.date(from: dateTime) else {
+            return false
+        }
+        let hour = Calendar.autoupdatingCurrent.component(.hour, from: date)
+        return hour < 6 || hour >= 19
+    }
+
+    private func nightSymbolName(for code: Int) -> String? {
+        switch code {
+        case 0:
+            return "moon.stars.fill"
+        case 1, 2:
+            return "cloud.moon.fill"
+        case 3:
+            return "cloud.fill"
+        case 45, 48:
+            return "cloud.fog.fill"
+        case 51, 53:
+            return "cloud.drizzle.fill"
+        case 55:
+            return "cloud.heavyrain.fill"
+        case 56, 57:
+            return "cloud.sleet.fill"
+        case 61, 63:
+            return "cloud.rain.fill"
+        case 65:
+            return "cloud.heavyrain.fill"
+        case 66, 67:
+            return "cloud.sleet.fill"
+        case 71, 73:
+            return "cloud.snow.fill"
+        case 75, 77:
+            return "snowflake"
+        case 80, 81:
+            return "cloud.rain.fill"
+        case 82:
+            return "cloud.heavyrain.fill"
+        case 85, 86:
+            return "cloud.snow.fill"
+        case 95, 96, 99:
+            return "cloud.bolt.rain.fill"
+        default:
+            return nil
+        }
+    }
 }
 
 #Preview {

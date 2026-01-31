@@ -78,6 +78,7 @@ public struct WeatherSnapshot {
     public let todayPrecipitationSum: Double?
     public let dailyForecasts: [DailyForecast]
     public let hourlyForecasts: [HourlyForecast]
+    public let allHourlyForecasts: [HourlyForecast]
 }
 
 public struct HourlyForecast: Identifiable {
@@ -115,12 +116,14 @@ public final class WeatherService {
         let todayPrecipitationSum = decoded.daily.precipitationSum.first
         let dailyForecasts = Self.dailyForecasts(from: decoded.daily)
         let hourlyForecasts = Self.hourlyForecasts(from: decoded.hourly, currentTime: currentTime)
+        let allHourlyForecasts = Self.allHourlyForecasts(from: decoded.hourly)
         return WeatherSnapshot(
             current: decoded.currentWeather,
             nextHourPrecipitation: nextHourPrecipitation,
             todayPrecipitationSum: todayPrecipitationSum,
             dailyForecasts: dailyForecasts,
-            hourlyForecasts: hourlyForecasts
+            hourlyForecasts: hourlyForecasts,
+            allHourlyForecasts: allHourlyForecasts
         )
     }
 
@@ -154,6 +157,22 @@ public final class WeatherService {
                 temperatureMin: daily.temperatureMin[index],
                 precipitationSum: daily.precipitationSum[index],
                 precipitationProbabilityMax: daily.precipitationProbabilityMax?[safe: index]
+            )
+        }
+    }
+
+    private static func allHourlyForecasts(from hourly: HourlyWeather) -> [HourlyForecast] {
+        let count = min(hourly.time.count, hourly.temperature.count, hourly.precipitation.count, hourly.weathercode.count)
+        guard count > 0 else {
+            return []
+        }
+        return (0..<count).map { index in
+            HourlyForecast(
+                time: hourly.time[index],
+                temperature: hourly.temperature[index],
+                weathercode: hourly.weathercode[index],
+                precipitation: hourly.precipitation[safe: index],
+                precipitationProbability: hourly.precipitationProbability?[safe: index]
             )
         }
     }
