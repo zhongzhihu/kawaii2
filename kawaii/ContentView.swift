@@ -423,16 +423,18 @@ struct ContentView: View {
         temperatureUnit: TemperatureUnit,
         precipitationUnit: PrecipitationUnit
     ) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let overviewCode = todayOverviewCode(forecast: forecast, current: current, hourlyForecasts: hourlyForecasts)
+
+        return VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                weatherIcon(for: forecast.weathercode, size: 30)
+                weatherIcon(for: overviewCode, size: 30)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(cityName)
                         .font(.headline)
                     Text("Today")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                    Text(todayOverviewDescription(forecast: forecast, current: current, hourlyForecasts: hourlyForecasts))
+                    Text(WeatherService.description(for: overviewCode))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -604,16 +606,16 @@ struct ContentView: View {
         }
     }
 
-    // Uses current hour + next 5 hours to summarize the today overview text.
-    private func todayOverviewDescription(
+    // Uses current hour + next 5 hours to summarize the today overview.
+    private func todayOverviewCode(
         forecast: DailyForecast,
         current: CurrentWeather,
         hourlyForecasts: [HourlyForecast]
-    ) -> String {
+    ) -> Int {
         let upcoming = hourlyForecasts
 
         if upcoming.isEmpty {
-            return WeatherService.description(for: forecast.weathercode)
+            return forecast.weathercode
         }
 
         let precipitationLikely = upcoming.contains { forecast in
@@ -628,12 +630,12 @@ struct ContentView: View {
 
         if precipitationLikely {
             let dominant = dominantWeatherCode(in: upcoming) ?? current.weathercode
-            return WeatherService.description(for: dominant)
+            return dominant
         }
 
         let nonWetCodes = upcoming.filter { !Self.isWetWeatherCode($0.weathercode) }
         let dominant = dominantWeatherCode(in: nonWetCodes.isEmpty ? upcoming : nonWetCodes) ?? current.weathercode
-        return WeatherService.description(for: dominant)
+        return dominant
     }
 
     private func dominantWeatherCode(in hourly: [HourlyForecast]) -> Int? {
