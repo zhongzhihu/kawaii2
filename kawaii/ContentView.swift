@@ -194,23 +194,19 @@ struct ContentView: View {
                         if showsSearch {
                             card
                                 .draggable(city.id.uuidString)
-                                .overlay(alignment: .leading) {
-                                    dropInsertionZone(
-                                        targetIndex: index,
-                                        size: size,
-                                        width: size,
-                                        offsetX: -size * 0.5
-                                    )
-                                }
-                                .overlay(alignment: .trailing) {
-                                    if index == customCities.indices.last {
-                                        dropInsertionZone(
-                                            targetIndex: customCities.count,
-                                            size: size,
-                                            width: size * 0.5,
-                                            offsetX: 0
-                                        )
+                                .dropDestination(for: String.self) { items, location in
+                                    guard let idString = items.first,
+                                          let draggedId = UUID(uuidString: idString),
+                                          draggedId != city.id else {
+                                        return false
                                     }
+                                    
+                                    // Determine if we should insert before or after based on drop location
+                                    // Using <= instead of < to ensure the entire card area is covered
+                                    let shouldInsertBefore = location.x <= size / 2
+                                    let targetIndex = shouldInsertBefore ? index : index + 1
+                                    moveCity(id: draggedId, to: targetIndex)
+                                    return true
                                 }
                         } else {
                             card
