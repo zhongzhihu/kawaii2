@@ -10,6 +10,7 @@ import UIKit
 import CoreLocation
 import MapKit
 import Combine
+import UniformTypeIdentifiers
 
 struct ContentView: View {
     private enum WidgetSelection: Hashable {
@@ -153,41 +154,68 @@ struct ContentView: View {
                             )
                     )
 
-                ForEach(customCities) { city in
-                    weatherCard(
-                        cityName: city.name,
-                        imageName: city.imageName,
-                        weather: city.weather,
-                        todayPrecipitationSum: city.todayPrecipitationSum,
-                        size: size
-                    )
-                    .onTapGesture {
-                        selectedWidget = .city(city.id)
-                    }
-                    .overlay(alignment: .topTrailing) {
-                        if showsSearch {
-                            Button {
-                                withAnimation(.easeInOut) {
-                                    removeCity(id: city.id)
+                ForEach(Array(customCities.enumerated()), id: \.element.id) { index, city in
+                    Group {
+                        let card = weatherCard(
+                            cityName: city.name,
+                            imageName: city.imageName,
+                            weather: city.weather,
+                            todayPrecipitationSum: city.todayPrecipitationSum,
+                            size: size
+                        )
+                        .onTapGesture {
+                            selectedWidget = .city(city.id)
+                        }
+                        .overlay(alignment: .topTrailing) {
+                            if showsSearch {
+                                Button {
+                                    withAnimation(.easeInOut) {
+                                        removeCity(id: city.id)
+                                    }
+                                } label: {
+                                    Image(systemName: "minus.circle.fill")
+                                        .font(.system(size: 20, weight: .semibold))
+                                        .foregroundStyle(.red)
+                                        .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 1)
                                 }
-                            } label: {
-                                Image(systemName: "minus.circle.fill")
-                                    .font(.system(size: 20, weight: .semibold))
-                                    .foregroundStyle(.red)
-                                    .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 1)
+                                .buttonStyle(.plain)
+                                .padding(8)
+                                .accessibilityLabel("Delete city")
                             }
-                            .buttonStyle(.plain)
-                            .padding(8)
-                            .accessibilityLabel("Delete city")
+                        }
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(
+                                    selectedWidget == .city(city.id) ? Color.white.opacity(0.75) : .clear,
+                                    lineWidth: 2
+                                )
+                        )
+
+                        if showsSearch {
+                            card
+                                .draggable(city.id.uuidString)
+                                .overlay(alignment: .leading) {
+                                    dropInsertionZone(
+                                        targetIndex: index,
+                                        size: size,
+                                        width: size,
+                                        offsetX: -size * 0.5
+                                    )
+                                }
+                                .overlay(alignment: .trailing) {
+                                    if index == customCities.indices.last {
+                                        dropInsertionZone(
+                                            targetIndex: customCities.count,
+                                            size: size,
+                                            width: size * 0.5,
+                                            offsetX: 0
+                                        )
+                                    }
+                                }
+                        } else {
+                            card
                         }
                     }
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .stroke(
-                                selectedWidget == .city(city.id) ? Color.white.opacity(0.75) : .clear,
-                                lineWidth: 2
-                            )
-                    )
                 }
             }
             .padding(.horizontal)
@@ -412,6 +440,42 @@ struct ContentView: View {
         if case .city(let selectedId) = selectedWidget, selectedId == id {
             selectedWidget = .location
         }
+    }
+
+    private func moveCity(id: UUID, to targetIndex: Int) {
+        guard let fromIndex = customCities.firstIndex(where: { $0.id == id }) else { return }
+        var adjustedIndex = targetIndex
+        if targetIndex > fromIndex {
+            adjustedIndex = max(0, targetIndex - 1)
+        }
+        guard fromIndex != adjustedIndex else { return }
+        withAnimation(.easeInOut) {
+            customCities.move(
+                fromOffsets: IndexSet(integer: fromIndex),
+                toOffset: adjustedIndex
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func dropInsertionZone(
+        targetIndex: Int,
+        size: CGFloat,
+        width: CGFloat,
+        offsetX: CGFloat
+    ) -> some View {
+        Color.clear
+            .frame(width: width, height: size)
+            .contentShape(Rectangle())
+            .offset(x: offsetX)
+            .dropDestination(for: String.self) { items, _ in
+                guard let idString = items.first,
+                      let id = UUID(uuidString: idString) else {
+                    return false
+                }
+                moveCity(id: id, to: targetIndex)
+                return true
+            }
     }
 
     private func weatherCard(
@@ -673,6 +737,7 @@ private struct CityWeatherEntry: Identifiable, Equatable {
             && lhs.coordinate.longitude == rhs.coordinate.longitude
     }
 }
+
 
 private struct StoredCity: Codable, Hashable {
     let name: String
