@@ -164,6 +164,23 @@ struct ContentView: View {
                     .onTapGesture {
                         selectedWidget = .city(city.id)
                     }
+                    .overlay(alignment: .topTrailing) {
+                        if showsSearch {
+                            Button {
+                                withAnimation(.easeInOut) {
+                                    removeCity(id: city.id)
+                                }
+                            } label: {
+                                Image(systemName: "minus.circle.fill")
+                                    .font(.system(size: 20, weight: .semibold))
+                                    .foregroundStyle(.red)
+                                    .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 1)
+                            }
+                            .buttonStyle(.plain)
+                            .padding(8)
+                            .accessibilityLabel("Delete city")
+                        }
+                    }
                     .overlay(
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
                             .stroke(
@@ -387,6 +404,14 @@ struct ContentView: View {
 
         guard let data = try? JSONEncoder().encode(stored) else { return }
         customCitiesData = data
+    }
+
+    private func removeCity(id: UUID) {
+        guard let index = customCities.firstIndex(where: { $0.id == id }) else { return }
+        customCities.remove(at: index)
+        if case .city(let selectedId) = selectedWidget, selectedId == id {
+            selectedWidget = .location
+        }
     }
 
     private func weatherCard(
