@@ -33,9 +33,12 @@ struct ContentView: View {
     @State private var searchQuery: String = ""
     @State private var isSearching = false
     @State private var searchError: String?
+    @State private var showsSearch = false
     @StateObject private var searchCompleter = CitySearchCompleter()
     @AppStorage("temperatureUnit") private var temperatureUnitRaw: String = ""
     @AppStorage("precipitationUnit") private var precipitationUnitRaw: String = ""
+    @AppStorage("customCitiesData") private var customCitiesData: Data = Data()
+    @State private var hasLoadedSavedCities = false
     private let cityGeocoder = CLGeocoder()
 
     init() {
@@ -50,90 +53,12 @@ struct ContentView: View {
     }
 
     var body: some View {
+        contentView
+    }
+
+    private var contentView: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 20) {
-                    searchSection
-
-                    let size = cardSize(for: UIScreen.main.bounds.width)
-                    ScrollView(.horizontal, showsIndicators: true) {
-                        HStack(alignment: .top, spacing: 16) {
-                            locationCard(size: size)
-                                .onTapGesture {
-                                    selectedWidget = .location
-                                }
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                        .stroke(
-                                            selectedWidget == .location ? Color.white.opacity(0.75) : .clear,
-                                            lineWidth: 2
-                                        )
-                                )
-
-                            ForEach(customCities) { city in
-                                weatherCard(
-                                    cityName: city.name,
-                                    imageName: city.imageName,
-                                    weather: city.weather,
-                                    todayPrecipitationSum: city.todayPrecipitationSum,
-                                    size: size
-                                )
-                                .onTapGesture {
-                                    selectedWidget = .city(city.id)
-                                }
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                        .stroke(
-                                            selectedWidget == .city(city.id) ? Color.white.opacity(0.75) : .clear,
-                                            lineWidth: 2
-                                        )
-                                )
-                            }
-                        }
-                        .padding(.horizontal)
-                        .frame(height: size)
-                    }
-                    .frame(height: size)
-
-                    switch selectedWidget {
-                    case .location:
-                        if let locationWeather, !locationForecasts.isEmpty {
-                            CityForecastView(
-                                cityName: locationName,
-                                forecasts: locationForecasts,
-                                current: locationWeather,
-                                upcomingHourlyForecasts: locationHourlyForecasts,
-                                allHourlyForecasts: locationAllHourlyForecasts
-                            )
-                            .padding(.horizontal)
-                        }
-                    case .city(let id):
-                        if let city = customCities.first(where: { $0.id == id }) {
-                            CityForecastView(
-                                cityName: city.name,
-                                forecasts: city.forecasts,
-                                current: city.weather,
-                                upcomingHourlyForecasts: city.hourlyForecasts,
-                                allHourlyForecasts: city.allHourlyForecasts
-                            )
-                            .padding(.horizontal)
-                        }
-                    }
-                }
-                .padding(.top, 8)
-                .padding(.bottom, 24)
-            }
-            .navigationTitle("Weather")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showsSettings = true
-                    } label: {
-                        Image(systemName: "gearshape")
-                    }
-                    .accessibilityLabel("Settings")
-                }
-            }
+            mainScroll
         }
         .sheet(isPresented: $showsSettings) {
             SettingsView(
@@ -146,6 +71,10 @@ struct ContentView: View {
             if let location = locationManager.lastLocation {
                 await loadLocationWeather(for: location)
             }
+            if !hasLoadedSavedCities {
+                hasLoadedSavedCities = true
+                await loadSavedCities()
+            }
         }
         .onChange(of: locationManager.lastLocation) { _, newLocation in
             guard let newLocation else { return }
@@ -155,6 +84,126 @@ struct ContentView: View {
         }
         .onChange(of: locationManager.placemark) { _, newPlacemark in
             updateLocationMetadata(from: newPlacemark)
+        }
+        .onChange(of: customCities) { _, _ in
+            persistCustomCities()
+        }
+    }
+
+    private var mainScroll: some View {
+        ScrollView {
+            mainStack
+        }
+        .navigationTitle("Weather")
+        .toolbar {
+            mainToolbar
+        }
+    }
+
+    private var mainStack: some View {
+        VStack(spacing: 20) {
+            if showsSearch {
+                searchSection
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
+            cardsScroll
+
+            selectedForecastView
+        }
+        .padding(.top, 8)
+        .padding(.bottom, 24)
+    }
+
+    @ToolbarContentBuilder
+    private var mainToolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            Button {
+                showsSettings = true
+            } label: {
+                Image(systemName: "gearshape")
+            }
+            .accessibilityLabel("Settings")
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            Button {
+                withAnimation(.easeInOut) {
+                    showsSearch.toggle()
+                }
+            } label: {
+                Image(systemName: "square.and.pencil")
+            }
+            .accessibilityLabel("Edit cities")
+        }
+    }
+
+    private var cardsScroll: some View {
+        let size = cardSize(for: UIScreen.main.bounds.width)
+        return ScrollView(.horizontal, showsIndicators: true) {
+            HStack(alignment: .top, spacing: 16) {
+                locationCard(size: size)
+                    .onTapGesture {
+                        selectedWidget = .location
+                    }
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(
+                                selectedWidget == .location ? Color.white.opacity(0.75) : .clear,
+                                lineWidth: 2
+                            )
+                    )
+
+                ForEach(customCities) { city in
+                    weatherCard(
+                        cityName: city.name,
+                        imageName: city.imageName,
+                        weather: city.weather,
+                        todayPrecipitationSum: city.todayPrecipitationSum,
+                        size: size
+                    )
+                    .onTapGesture {
+                        selectedWidget = .city(city.id)
+                    }
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(
+                                selectedWidget == .city(city.id) ? Color.white.opacity(0.75) : .clear,
+                                lineWidth: 2
+                            )
+                    )
+                }
+            }
+            .padding(.horizontal)
+            .frame(height: size)
+        }
+        .frame(height: size)
+    }
+
+    @ViewBuilder
+    private var selectedForecastView: some View {
+        switch selectedWidget {
+        case .location:
+            if let locationWeather, !locationForecasts.isEmpty {
+                CityForecastView(
+                    cityName: locationName,
+                    forecasts: locationForecasts,
+                    current: locationWeather,
+                    upcomingHourlyForecasts: locationHourlyForecasts,
+                    allHourlyForecasts: locationAllHourlyForecasts
+                )
+                .padding(.horizontal)
+            }
+        case .city(let id):
+            if let city = customCities.first(where: { $0.id == id }) {
+                CityForecastView(
+                    cityName: city.name,
+                    forecasts: city.forecasts,
+                    current: city.weather,
+                    upcomingHourlyForecasts: city.hourlyForecasts,
+                    allHourlyForecasts: city.allHourlyForecasts
+                )
+                .padding(.horizontal)
+            }
         }
     }
 
@@ -285,6 +334,59 @@ struct ContentView: View {
         }
 
         isSearching = false
+    }
+
+    @MainActor
+    private func loadSavedCities() async {
+        guard !customCitiesData.isEmpty else { return }
+        let stored: [StoredCity]
+        do {
+            stored = try JSONDecoder().decode([StoredCity].self, from: customCitiesData)
+        } catch {
+            return
+        }
+
+        var loaded: [CityWeatherEntry] = []
+        for city in stored {
+            do {
+                let snapshot = try await WeatherService.shared.fetchWeatherSnapshot(
+                    latitude: city.latitude,
+                    longitude: city.longitude
+                )
+                let entry = CityWeatherEntry(
+                    name: city.name,
+                    normalizedKey: city.normalizedKey,
+                    imageName: city.imageName,
+                    coordinate: CLLocationCoordinate2D(latitude: city.latitude, longitude: city.longitude),
+                    weather: snapshot.current,
+                    todayPrecipitationSum: snapshot.todayPrecipitationSum,
+                    forecasts: snapshot.dailyForecasts,
+                    hourlyForecasts: snapshot.hourlyForecasts,
+                    allHourlyForecasts: snapshot.allHourlyForecasts
+                )
+                loaded.append(entry)
+            } catch {
+                continue
+            }
+        }
+
+        customCities = loaded
+        selectedWidget = .location
+    }
+
+    private func persistCustomCities() {
+        let stored = customCities.map { city in
+            StoredCity(
+                name: city.name,
+                normalizedKey: city.normalizedKey,
+                imageName: city.imageName,
+                latitude: city.coordinate.latitude,
+                longitude: city.coordinate.longitude
+            )
+        }
+
+        guard let data = try? JSONEncoder().encode(stored) else { return }
+        customCitiesData = data
     }
 
     private func weatherCard(
@@ -526,7 +628,7 @@ struct ContentView: View {
     }
 }
 
-private struct CityWeatherEntry: Identifiable {
+private struct CityWeatherEntry: Identifiable, Equatable {
     let id = UUID()
     let name: String
     let normalizedKey: String
@@ -537,6 +639,22 @@ private struct CityWeatherEntry: Identifiable {
     let forecasts: [DailyForecast]
     let hourlyForecasts: [HourlyForecast]
     let allHourlyForecasts: [HourlyForecast]
+
+    static func == (lhs: CityWeatherEntry, rhs: CityWeatherEntry) -> Bool {
+        lhs.normalizedKey == rhs.normalizedKey
+            && lhs.name == rhs.name
+            && lhs.imageName == rhs.imageName
+            && lhs.coordinate.latitude == rhs.coordinate.latitude
+            && lhs.coordinate.longitude == rhs.coordinate.longitude
+    }
+}
+
+private struct StoredCity: Codable, Hashable {
+    let name: String
+    let normalizedKey: String
+    let imageName: String?
+    let latitude: Double
+    let longitude: Double
 }
 
 private final class CitySearchCompleter: NSObject, ObservableObject, MKLocalSearchCompleterDelegate {
