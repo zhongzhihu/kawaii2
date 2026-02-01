@@ -141,7 +141,7 @@ enum TemperatureUnit: String, CaseIterable, Identifiable {
         case .fahrenheit:
             value = (temperatureInCelsius * 9 / 5) + 32
         }
-        return String(format: "%.0f %@", value, symbol)
+        return String(format: "%.0f°", value)
     }
 }
 

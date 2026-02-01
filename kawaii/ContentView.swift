@@ -572,6 +572,8 @@ struct ContentView: View {
                         .allowsTightening(true)
                         .fixedSize(horizontal: false, vertical: true)
 
+                    Spacer(minLength: 8)
+
                     Text(temperatureUnit.formatted(temperatureInCelsius: weather.temperature))
                         .font(.title2.weight(.semibold))
                         .foregroundStyle(.white)
