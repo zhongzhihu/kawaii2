@@ -670,6 +670,7 @@ struct ContentView: View {
             .components(separatedBy: .alphanumerics.inverted)
             .filter { !$0.isEmpty }
             .joined(separator: "_")
+            .lowercased()
     }
 
     private func normalizedCityKey(_ cityName: String) -> String {
@@ -762,6 +763,17 @@ struct ContentView: View {
            let image = UIImage(contentsOfFile: url.path) {
             return image
         }
+        
+        // Try looking in assets/ folder
+        if let url = Bundle.main.url(forResource: name, withExtension: "png", subdirectory: "assets"),
+           let image = UIImage(contentsOfFile: url.path) {
+            return image
+        }
+        if let url = Bundle.main.url(forResource: name, withExtension: nil, subdirectory: "assets"),
+           let image = UIImage(contentsOfFile: url.path) {
+            return image
+        }
+        
         return nil
     }
 }
