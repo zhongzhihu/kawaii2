@@ -40,6 +40,7 @@ struct ContentView: View {
     @AppStorage("precipitationUnit") private var precipitationUnitRaw: String = ""
     @AppStorage("customCitiesData") private var customCitiesData: Data = Data()
     @State private var hasLoadedSavedCities = false
+    @State private var draggedCityId: UUID?
     private let cityGeocoder = CLGeocoder()
 
     init() {
@@ -193,21 +194,22 @@ struct ContentView: View {
 
                         if showsSearch {
                             card
-                                .draggable(city.id.uuidString)
-                                .dropDestination(for: String.self) { items, location in
-                                    guard let idString = items.first,
-                                          let draggedId = UUID(uuidString: idString),
-                                          draggedId != city.id else {
-                                        return false
-                                    }
-                                    
-                                    // Determine if we should insert before or after based on drop location
-                                    // Using <= instead of < to ensure the entire card area is covered
-                                    let shouldInsertBefore = location.x <= size / 2
-                                    let targetIndex = shouldInsertBefore ? index : index + 1
-                                    moveCity(id: draggedId, to: targetIndex)
-                                    return true
+                                .onDrag {
+                                    draggedCityId = city.id
+                                    return NSItemProvider(object: city.id.uuidString as NSString)
                                 }
+                                .onDrop(
+                                    of: [UTType.text],
+                                    delegate: CityReorderDropDelegate(
+                                        targetId: city.id,
+                                        targetIndex: index,
+                                        cardWidth: size,
+                                        draggedCityId: $draggedCityId,
+                                        moveAction: { id, targetIndex, insertAfter in
+                                            moveCity(id: id, targetIndex: targetIndex, insertAfter: insertAfter)
+                                        }
+                                    )
+                                )
                         } else {
                             card
                         }
@@ -252,13 +254,37 @@ struct ContentView: View {
     private var searchSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
-                TextField("Search city", text: $searchQuery)
-                    .textInputAutocapitalization(.words)
-                    .disableAutocorrection(true)
-                    .textFieldStyle(.roundedBorder)
-                    .onChange(of: searchQuery) { _, newValue in
-                        searchCompleter.query = newValue
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+
+                    TextField("Search", text: $searchQuery)
+                        .textInputAutocapitalization(.words)
+                        .disableAutocorrection(true)
+                        .onChange(of: searchQuery) { _, newValue in
+                            searchCompleter.query = newValue
+                        }
+
+                    if !searchQuery.isEmpty {
+                        Button {
+                            searchQuery = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Clear search")
                     }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity)
+                .background(Color(uiColor: .secondarySystemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.white.opacity(0.06))
+                )
 
                 Button {
                     Task {
@@ -397,7 +423,7 @@ struct ContentView: View {
                 let entry = CityWeatherEntry(
                     name: city.name,
                     normalizedKey: city.normalizedKey,
-                    imageName: city.imageName,
+                    imageName: imageNameForCity(city.name),
                     coordinate: CLLocationCoordinate2D(latitude: city.latitude, longitude: city.longitude),
                     weather: snapshot.current,
                     todayPrecipitationSum: snapshot.todayPrecipitationSum,
@@ -438,18 +464,55 @@ struct ContentView: View {
         }
     }
 
-    private func moveCity(id: UUID, to targetIndex: Int) {
+    private func moveCity(id: UUID, targetIndex: Int, insertAfter: Bool) {
         guard let fromIndex = customCities.firstIndex(where: { $0.id == id }) else { return }
-        var adjustedIndex = targetIndex
-        if targetIndex > fromIndex {
-            adjustedIndex = max(0, targetIndex - 1)
+
+        let destinationIndex = insertAfter ? targetIndex + 1 : targetIndex
+        let clampedIndex = max(0, min(destinationIndex, customCities.count))
+
+        if fromIndex < clampedIndex {
+            if fromIndex == clampedIndex - 1 { return }
+        } else {
+            if fromIndex == clampedIndex { return }
         }
-        guard fromIndex != adjustedIndex else { return }
+
         withAnimation(.easeInOut) {
             customCities.move(
                 fromOffsets: IndexSet(integer: fromIndex),
-                toOffset: adjustedIndex
+                toOffset: clampedIndex
             )
+        }
+    }
+
+    private struct CityReorderDropDelegate: DropDelegate {
+        let targetId: UUID
+        let targetIndex: Int
+        let cardWidth: CGFloat
+        @Binding var draggedCityId: UUID?
+        let moveAction: (UUID, Int, Bool) -> Void
+
+        func dropEntered(info: DropInfo) {
+            reorderIfNeeded(info: info)
+        }
+
+        func dropUpdated(info: DropInfo) -> DropProposal? {
+            reorderIfNeeded(info: info)
+            return DropProposal(operation: .move)
+        }
+
+        func performDrop(info: DropInfo) -> Bool {
+            draggedCityId = nil
+            return true
+        }
+
+        private func reorderIfNeeded(info: DropInfo) {
+            guard let draggedId = draggedCityId,
+                  draggedId != targetId else {
+                return
+            }
+
+            let shouldInsertAfter = info.location.x > cardWidth / 2
+            moveAction(draggedId, targetIndex, shouldInsertAfter)
         }
     }
 
@@ -469,7 +532,7 @@ struct ContentView: View {
                       let id = UUID(uuidString: idString) else {
                     return false
                 }
-                moveCity(id: id, to: targetIndex)
+                moveCity(id: id, targetIndex: targetIndex, insertAfter: false)
                 return true
             }
     }
@@ -600,23 +663,11 @@ struct ContentView: View {
     }
 
     private func imageNameForCity(_ cityName: String) -> String? {
-        let normalized = cityName
+        cityName
             .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        if normalized.contains("zurich") {
-            return "zurich_1"
-        }
-        if normalized.contains("san francisco") {
-            return "san_francisco_1"
-        }
-        if normalized.contains("miami") {
-            return "miami"
-        }
-        if normalized.contains("dubai") {
-            return "dubai"
-        }
-        return nil
+            .components(separatedBy: .alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+            .joined(separator: "_")
     }
 
     private func normalizedCityKey(_ cityName: String) -> String {
