@@ -124,15 +124,6 @@ enum TemperatureUnit: String, CaseIterable, Identifiable {
         }
     }
 
-    var symbol: String {
-        switch self {
-        case .celsius:
-            return "℃"
-        case .fahrenheit:
-            return "℉"
-        }
-    }
-
     func formatted(temperatureInCelsius: Double) -> String {
         let value: Double
         switch self {

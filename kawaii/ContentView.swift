@@ -763,17 +763,6 @@ struct ContentView: View {
            let image = UIImage(contentsOfFile: url.path) {
             return image
         }
-        
-        // Try looking in assets/ folder
-        if let url = Bundle.main.url(forResource: name, withExtension: "png", subdirectory: "assets"),
-           let image = UIImage(contentsOfFile: url.path) {
-            return image
-        }
-        if let url = Bundle.main.url(forResource: name, withExtension: nil, subdirectory: "assets"),
-           let image = UIImage(contentsOfFile: url.path) {
-            return image
-        }
-        
         return nil
     }
 }
@@ -1227,7 +1216,7 @@ struct CityForecastView: View {
         case .fahrenheit:
             converted = (value * 9 / 5) + 32
         }
-        return String(format: "%.0f%@", converted, unit.symbol)
+        return String(format: "%.0f°", converted)
     }
 
     private func weatherIcon(for code: Int, size: CGFloat, isNight: Bool = false) -> some View {
