@@ -376,10 +376,13 @@ struct ContentView: View {
                 longitude: location.coordinate.longitude
             )
 
+            // Compute the image name used for asset lookup
+            let imageName = imageNameForCity(displayName)
+
             let entry = CityWeatherEntry(
                 name: displayName,
                 normalizedKey: normalizedCityKey(displayName),
-                imageName: imageNameForCity(displayName),
+                imageName: imageName,
                 coordinate: location.coordinate,
                 weather: snapshot.current,
                 todayPrecipitationSum: snapshot.todayPrecipitationSum,
@@ -390,8 +393,12 @@ struct ContentView: View {
 
             if let index = customCities.firstIndex(where: { $0.normalizedKey == entry.normalizedKey }) {
                 customCities[index] = entry
+                let assetExists = (imageName.flatMap { loadImage(named: $0) } != nil)
+                print("[ImageDebug] Updated city card '\(displayName)' normalizedKey='\(entry.normalizedKey)' imageName='\(imageName ?? "nil")' assetExists=\(assetExists)")
             } else {
                 customCities.append(entry)
+                let assetExists = (imageName.flatMap { loadImage(named: $0) } != nil)
+                print("[ImageDebug] Added city card '\(displayName)' normalizedKey='\(entry.normalizedKey)' imageName='\(imageName ?? "nil")' assetExists=\(assetExists)")
             }
 
             selectedWidget = .city(entry.id)
