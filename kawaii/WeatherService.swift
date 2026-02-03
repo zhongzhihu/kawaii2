@@ -20,11 +20,13 @@ public struct OpenMeteoResponse: Decodable {
     public let currentWeather: CurrentWeather
     public let hourly: HourlyWeather
     public let daily: DailyWeather
+    public let utcOffsetSeconds: Int
 
     private enum CodingKeys: String, CodingKey {
         case currentWeather = "current_weather"
         case hourly
         case daily
+        case utcOffsetSeconds = "utc_offset_seconds"
     }
 }
 
@@ -51,6 +53,8 @@ public struct DailyWeather: Decodable {
     public let temperatureMax: [Double]
     public let temperatureMin: [Double]
     public let precipitationProbabilityMax: [Double]?
+    public let sunrise: [String]
+    public let sunset: [String]
 
     private enum CodingKeys: String, CodingKey {
         case time
@@ -59,6 +63,8 @@ public struct DailyWeather: Decodable {
         case temperatureMax = "temperature_2m_max"
         case temperatureMin = "temperature_2m_min"
         case precipitationProbabilityMax = "precipitation_probability_max"
+        case sunrise
+        case sunset
     }
 }
 
@@ -79,6 +85,7 @@ public struct WeatherSnapshot {
     public let dailyForecasts: [DailyForecast]
     public let hourlyForecasts: [HourlyForecast]
     public let allHourlyForecasts: [HourlyForecast]
+    public let isAfterSunset: Bool?
 }
 
 public struct HourlyForecast: Identifiable {
@@ -93,19 +100,28 @@ public struct HourlyForecast: Identifiable {
 public final class WeatherService {
     public static let shared = WeatherService()
 
-    private static let hourlyDateFormatter: DateFormatter = {
+    private static func localDateTimeFormatter(utcOffsetSeconds: Int) -> DateFormatter {
         let formatter = DateFormatter()
         formatter.calendar = Calendar(identifier: .iso8601)
-        formatter.locale = Locale.autoupdatingCurrent
-        formatter.timeZone = .autoupdatingCurrent
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: utcOffsetSeconds)
         formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
         return formatter
-    }()
+    }
+
+    private static func localDateFormatter(utcOffsetSeconds: Int) -> DateFormatter {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .iso8601)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: utcOffsetSeconds)
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }
 
     private init() {}
 
     public func fetchWeatherSnapshot(latitude: Double, longitude: Double) async throws -> WeatherSnapshot {
-        let urlString = "https://api.open-meteo.com/v1/forecast?latitude=\(latitude)&longitude=\(longitude)&current_weather=true&hourly=temperature_2m,precipitation,precipitation_probability,weathercode&daily=precipitation_sum,weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max&forecast_days=8&timezone=auto"
+        let urlString = "https://api.open-meteo.com/v1/forecast?latitude=\(latitude)&longitude=\(longitude)&current_weather=true&hourly=temperature_2m,precipitation,precipitation_probability,weathercode&daily=precipitation_sum,weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset&forecast_days=8&timezone=auto"
         guard let url = URL(string: urlString) else {
             throw URLError(.badURL)
         }
@@ -115,15 +131,25 @@ public final class WeatherService {
         let nextHourPrecipitation = Self.nextHourPrecipitation(from: decoded.hourly, currentTime: currentTime)
         let todayPrecipitationSum = decoded.daily.precipitationSum.first
         let dailyForecasts = Self.dailyForecasts(from: decoded.daily)
-        let hourlyForecasts = Self.hourlyForecasts(from: decoded.hourly, currentTime: currentTime)
+        let hourlyForecasts = Self.hourlyForecasts(
+            from: decoded.hourly,
+            currentTime: currentTime,
+            utcOffsetSeconds: decoded.utcOffsetSeconds
+        )
         let allHourlyForecasts = Self.allHourlyForecasts(from: decoded.hourly)
+        let isAfterSunset = Self.isAfterSunset(
+            currentTime: currentTime,
+            daily: decoded.daily,
+            utcOffsetSeconds: decoded.utcOffsetSeconds
+        )
         return WeatherSnapshot(
             current: decoded.currentWeather,
             nextHourPrecipitation: nextHourPrecipitation,
             todayPrecipitationSum: todayPrecipitationSum,
             dailyForecasts: dailyForecasts,
             hourlyForecasts: hourlyForecasts,
-            allHourlyForecasts: allHourlyForecasts
+            allHourlyForecasts: allHourlyForecasts,
+            isAfterSunset: isAfterSunset
         )
     }
 
@@ -177,19 +203,24 @@ public final class WeatherService {
         }
     }
 
-    private static func hourlyForecasts(from hourly: HourlyWeather, currentTime: String) -> [HourlyForecast] {
+    private static func hourlyForecasts(
+        from hourly: HourlyWeather,
+        currentTime: String,
+        utcOffsetSeconds: Int
+    ) -> [HourlyForecast] {
         let count = min(hourly.time.count, hourly.temperature.count, hourly.precipitation.count, hourly.weathercode.count)
         guard count > 0 else {
             return []
         }
 
         let startIndex: Int
-        if let currentDate = Self.hourlyDateFormatter.date(from: currentTime) {
+        let formatter = Self.localDateTimeFormatter(utcOffsetSeconds: utcOffsetSeconds)
+        if let currentDate = formatter.date(from: currentTime) {
             if let exactIndex = hourly.time.firstIndex(of: currentTime) {
                 startIndex = exactIndex
             } else {
                 startIndex = hourly.time.firstIndex(where: { time in
-                    guard let date = Self.hourlyDateFormatter.date(from: time) else {
+                    guard let date = formatter.date(from: time) else {
                         return false
                     }
                     return date >= currentDate
@@ -213,6 +244,61 @@ public final class WeatherService {
                 precipitationProbability: hourly.precipitationProbability?[safe: index]
             )
         }
+    }
+
+    private static func isAfterSunset(
+        currentTime: String,
+        daily: DailyWeather,
+        utcOffsetSeconds: Int
+    ) -> Bool? {
+        let formatter = Self.localDateTimeFormatter(utcOffsetSeconds: utcOffsetSeconds)
+        let dateFormatter = Self.localDateFormatter(utcOffsetSeconds: utcOffsetSeconds)
+        guard let currentDate = formatter.date(from: currentTime) else {
+            print("[SunsetDebug] Unable to parse currentTime '\(currentTime)' offset=\(utcOffsetSeconds)")
+            return nil
+        }
+
+        let calendar = Calendar(identifier: .iso8601)
+        for index in 0..<daily.time.count {
+            guard let dayDate = dateFormatter.date(from: daily.time[index]) else {
+                continue
+            }
+            guard calendar.isDate(currentDate, inSameDayAs: dayDate) else {
+                continue
+            }
+
+            guard let sunriseString = daily.sunrise[safe: index],
+                  let sunsetString = daily.sunset[safe: index],
+                  let sunriseDate = formatter.date(from: sunriseString),
+                  let sunsetDate = formatter.date(from: sunsetString) else {
+                print("[SunsetDebug] Missing sunrise/sunset for index=\(index) date=\(daily.time[index]) offset=\(utcOffsetSeconds)")
+                return nil
+            }
+
+            if currentDate >= sunsetDate {
+                print("[SunsetDebug] After sunset. current=\(currentTime) sunset=\(sunsetString) sunrise=\(sunriseString) offset=\(utcOffsetSeconds)")
+                return true
+            }
+
+            if currentDate < sunriseDate {
+                let previousIndex = index - 1
+                if previousIndex >= 0,
+                   let previousSunsetString = daily.sunset[safe: previousIndex],
+                   let previousSunsetDate = formatter.date(from: previousSunsetString) {
+                    let result = currentDate >= previousSunsetDate
+                    print("[SunsetDebug] Before sunrise; previous sunset check. current=\(currentTime) prevSunset=\(previousSunsetString) result=\(result) offset=\(utcOffsetSeconds)")
+                    return result
+                }
+                print("[SunsetDebug] Before sunrise with no previous day. current=\(currentTime) sunrise=\(sunriseString) offset=\(utcOffsetSeconds)")
+                return true
+            }
+
+            print("[SunsetDebug] Before sunset. current=\(currentTime) sunset=\(sunsetString) sunrise=\(sunriseString) offset=\(utcOffsetSeconds)")
+            return false
+        }
+
+        print("[SunsetDebug] No matching daily date for currentTime '\(currentTime)' offset=\(utcOffsetSeconds)")
+        return nil
     }
 
     public static func description(for code: Int) -> String {

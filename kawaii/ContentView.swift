@@ -27,6 +27,7 @@ struct ContentView: View {
     @State private var locationAllHourlyForecasts: [HourlyForecast] = []
     @State private var locationName: String = "Current Location"
     @State private var locationImageName: String?
+    @State private var locationIsAfterSunset: Bool?
     @State private var locationError: String?
     @State private var lastFetchedLocation: CLLocation?
     @State private var customCities: [CityWeatherEntry] = []
@@ -162,6 +163,7 @@ struct ContentView: View {
                             imageName: city.imageName,
                             weather: city.weather,
                             todayPrecipitationSum: city.todayPrecipitationSum,
+                            isAfterSunset: city.isAfterSunset,
                             size: size
                         )
                         .onTapGesture {
@@ -385,6 +387,7 @@ struct ContentView: View {
                 imageName: imageName,
                 coordinate: location.coordinate,
                 weather: snapshot.current,
+                isAfterSunset: snapshot.isAfterSunset,
                 todayPrecipitationSum: snapshot.todayPrecipitationSum,
                 forecasts: snapshot.dailyForecasts,
                 hourlyForecasts: snapshot.hourlyForecasts,
@@ -433,6 +436,7 @@ struct ContentView: View {
                     imageName: imageNameForCity(city.name),
                     coordinate: CLLocationCoordinate2D(latitude: city.latitude, longitude: city.longitude),
                     weather: snapshot.current,
+                    isAfterSunset: snapshot.isAfterSunset,
                     todayPrecipitationSum: snapshot.todayPrecipitationSum,
                     forecasts: snapshot.dailyForecasts,
                     hourlyForecasts: snapshot.hourlyForecasts,
@@ -549,15 +553,17 @@ struct ContentView: View {
         imageName: String?,
         weather: CurrentWeather,
         todayPrecipitationSum: Double?,
+        isAfterSunset: Bool?,
         size: CGFloat
     ) -> some View {
         let temperatureUnit = TemperatureUnit(rawValue: temperatureUnitRaw)
             ?? (Locale.current.usesMetricSystem ? .celsius : .fahrenheit)
         let precipitationUnit = PrecipitationUnit(rawValue: precipitationUnitRaw)
             ?? (Locale.current.usesMetricSystem ? .millimeters : .inches)
+        let resolvedImageName = effectiveImageName(baseName: imageName, isAfterSunset: isAfterSunset)
 
         return ZStack(alignment: .topLeading) {
-            if let imageName, let uiImage = loadImage(named: imageName) {
+            if let resolvedImageName, let uiImage = loadImage(named: resolvedImageName) {
                 Image(uiImage: uiImage)
                     .resizable()
                     .scaledToFill()
@@ -652,9 +658,11 @@ struct ContentView: View {
             locationForecasts = snapshot.dailyForecasts
             locationHourlyForecasts = snapshot.hourlyForecasts
             locationAllHourlyForecasts = snapshot.allHourlyForecasts
+            locationIsAfterSunset = snapshot.isAfterSunset
             locationError = nil
         } catch {
             locationError = error.localizedDescription
+            locationIsAfterSunset = nil
         }
     }
 
@@ -680,6 +688,22 @@ struct ContentView: View {
             .lowercased()
     }
 
+    private func effectiveImageName(baseName: String?, isAfterSunset: Bool?) -> String? {
+        guard let baseName else {
+            return nil
+        }
+        guard isAfterSunset == true else {
+            return baseName
+        }
+
+        let eveningName = "\(baseName)_e"
+        if loadImage(named: eveningName) != nil {
+            print("[ImageDebug] Using night asset '\(eveningName)' for '\(baseName)'")
+            return eveningName
+        }
+        return baseName
+    }
+
     private func normalizedCityKey(_ cityName: String) -> String {
         cityName
             .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
@@ -698,6 +722,7 @@ struct ContentView: View {
                     imageName: locationImageName,
                     weather: locationWeather,
                     todayPrecipitationSum: locationTodayPrecipitationSum,
+                    isAfterSunset: locationIsAfterSunset,
                     size: size
                 )
             } else {
@@ -781,6 +806,7 @@ private struct CityWeatherEntry: Identifiable, Equatable {
     let imageName: String?
     let coordinate: CLLocationCoordinate2D
     let weather: CurrentWeather
+    let isAfterSunset: Bool?
     let todayPrecipitationSum: Double?
     let forecasts: [DailyForecast]
     let hourlyForecasts: [HourlyForecast]
@@ -792,6 +818,7 @@ private struct CityWeatherEntry: Identifiable, Equatable {
             && lhs.imageName == rhs.imageName
             && lhs.coordinate.latitude == rhs.coordinate.latitude
             && lhs.coordinate.longitude == rhs.coordinate.longitude
+            && lhs.isAfterSunset == rhs.isAfterSunset
     }
 }
 
