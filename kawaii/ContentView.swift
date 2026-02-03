@@ -698,7 +698,6 @@ struct ContentView: View {
 
         let eveningName = "\(baseName)_e"
         if loadImage(named: eveningName) != nil {
-            print("[ImageDebug] Using night asset '\(eveningName)' for '\(baseName)'")
             return eveningName
         }
         return baseName

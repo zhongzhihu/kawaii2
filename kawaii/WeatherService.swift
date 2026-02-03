@@ -254,7 +254,6 @@ public final class WeatherService {
         let formatter = Self.localDateTimeFormatter(utcOffsetSeconds: utcOffsetSeconds)
         let dateFormatter = Self.localDateFormatter(utcOffsetSeconds: utcOffsetSeconds)
         guard let currentDate = formatter.date(from: currentTime) else {
-            print("[SunsetDebug] Unable to parse currentTime '\(currentTime)' offset=\(utcOffsetSeconds)")
             return nil
         }
 
@@ -271,12 +270,10 @@ public final class WeatherService {
                   let sunsetString = daily.sunset[safe: index],
                   let sunriseDate = formatter.date(from: sunriseString),
                   let sunsetDate = formatter.date(from: sunsetString) else {
-                print("[SunsetDebug] Missing sunrise/sunset for index=\(index) date=\(daily.time[index]) offset=\(utcOffsetSeconds)")
                 return nil
             }
 
             if currentDate >= sunsetDate {
-                print("[SunsetDebug] After sunset. current=\(currentTime) sunset=\(sunsetString) sunrise=\(sunriseString) offset=\(utcOffsetSeconds)")
                 return true
             }
 
@@ -285,19 +282,14 @@ public final class WeatherService {
                 if previousIndex >= 0,
                    let previousSunsetString = daily.sunset[safe: previousIndex],
                    let previousSunsetDate = formatter.date(from: previousSunsetString) {
-                    let result = currentDate >= previousSunsetDate
-                    print("[SunsetDebug] Before sunrise; previous sunset check. current=\(currentTime) prevSunset=\(previousSunsetString) result=\(result) offset=\(utcOffsetSeconds)")
-                    return result
+                    return currentDate >= previousSunsetDate
                 }
-                print("[SunsetDebug] Before sunrise with no previous day. current=\(currentTime) sunrise=\(sunriseString) offset=\(utcOffsetSeconds)")
                 return true
             }
 
-            print("[SunsetDebug] Before sunset. current=\(currentTime) sunset=\(sunsetString) sunrise=\(sunriseString) offset=\(utcOffsetSeconds)")
             return false
         }
 
-        print("[SunsetDebug] No matching daily date for currentTime '\(currentTime)' offset=\(utcOffsetSeconds)")
         return nil
     }
 
